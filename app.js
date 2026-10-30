@@ -129,26 +129,34 @@ const k=candles[candles.length-1];if(k&&Date.now()<k.t+TFS[S.tf]*1000){k.c=tick.
 compute();render()}catch(e){netErr=navigator.onLine?'انقطع تحديث السعر: '+e.message:'لا يوجد اتصال بالإنترنت.';compute();render()}finally{busy=false}}
 function compute(){if(netErr||!tick||!candles.length){res=null;return}
 res=analyze(candles,tick.price,TFS[S.tf],Date.now(),marketOpen(new Date()),htf);
-if(prevSig!==null&&res.signal!==prevSig&&res.signal!=='WAIT')alertSig(res.signal);prevSig=res.signal;logUpdate()}
+logUpdate()}
 let LOG=[];try{LOG=JSON.parse(localStorage.getItem('gatp_log')||'[]')}catch(e){}
 const saveLog=()=>{try{localStorage.setItem('gatp_log',JSON.stringify(LOG.slice(-200)))}catch(e){}};
+let sc=0,lastS='';
 function logUpdate(){if(!res||!tick||!candles.length)return;
-LOG.forEach(e=>{if(e.r)return;const B=e.sig==='BUY',chk=(h,l)=>{if(e.r)return;const sl=B?l<=e.sl:h>=e.sl,tp=B?h>=e.tp1:l<=e.tp1;if(sl)e.r='L';else if(tp)e.r='W'};
-candles.forEach(k=>{if(k.t>e.t0)chk(k.h,k.l)});chk(tick.price,tick.price)});
+LOG.forEach(e=>{if(e.r)return;if(!e.exitBy){e.r='T';return}const B=e.sig==='BUY',chk=(h,l)=>{if(e.r)return;const sl=B?l<=e.sl:h>=e.sl,tp=B?h>=e.tp1:l<=e.tp1;if(sl)e.r='L';else if(tp)e.r='W'};
+candles.forEach(k=>{if(k.t>e.t0)chk(k.h,k.l)});chk(tick.price,tick.price);if(!e.r&&Date.now()>e.exitBy)e.r='T'});
+if(res.signal===lastS)sc++;else{sc=1;lastS=res.signal}
 const key=candles.length>1?candles[candles.length-2].t:0;
-if(res.signal!=='WAIT'&&res.trade&&!LOG.some(e=>!e.r)&&!LOG.some(e=>e.key===key&&e.tf===S.tf)){const t=res.trade;
-LOG.push({key,tf:S.tf,t0:candles[candles.length-1].t,at:Date.now(),sig:res.signal,setup:res.setup,entry:t.entry,sl:t.sl,tp1:t.tp1,tp2:t.tp2,r:null})}
+if(res.signal!=='WAIT'&&res.trade&&!LOG.some(e=>!e.r)&&sc>=3&&!LOG.some(e=>e.key===key&&e.tf===S.tf)){const t=res.trade,T=TFS[S.tf]*1000;
+LOG.push({key,tf:S.tf,t0:candles[candles.length-1].t,at:Date.now(),sig:res.signal,setup:res.setup,entry:t.entry,sl:t.sl,tp1:t.tp1,tp2:t.tp2,why:res.reasons.slice(),enterUntil:Date.now()+3*T,exitBy:Date.now()+12*T,r:null});alertSig(res.signal)}
 saveLog();renderLog()}
 function renderLog(){const el=$('log');if(!el)return;const w=LOG.filter(e=>e.r==='W').length,l=LOG.filter(e=>e.r==='L').length,o=LOG.filter(e=>!e.r).length;
 $('logStat').textContent='رابحة (TP1): '+w+' · خاسرة: '+l+' · مفتوحة: '+o+(w+l?' · نسبة النجاح الفعلية: '+Math.round(w/(w+l)*100)+'%':'');
 el.innerHTML='';LOG.slice(-10).reverse().forEach(e=>{const d=document.createElement('div');d.className='ses';
 d.textContent=new Date(e.at).toLocaleTimeString('en-GB',{timeZone:'Africa/Tripoli',hour:'2-digit',minute:'2-digit'})+' '+e.sig+' '+e.tf+' @'+e.entry.toFixed(2);
-const r=document.createElement('span');r.textContent=e.r==='W'?'✔ ربح':e.r==='L'?'✖ خسارة':'… مفتوحة';r.style.color=e.r==='W'?'#26a69a':e.r==='L'?'#ef5350':'#999';d.appendChild(r);el.appendChild(d)})}
+const r=document.createElement('span');r.textContent=e.r==='W'?'✔ ربح':e.r==='L'?'✖ خسارة':e.r==='T'?'⏱ انتهى الوقت':'… مفتوحة';r.style.color=e.r==='W'?'#26a69a':e.r==='L'?'#ef5350':'#999';d.appendChild(r);el.appendChild(d)})}
 function alertSig(s){const m='إشارة جديدة: '+(s==='BUY'?'شراء BUY':'بيع SELL')+' على XAUUSD '+S.tf;
 document.title=m;try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}
 if(S.notify){try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator();o.connect(a.destination);o.frequency.value=880;o.start();o.stop(a.currentTime+.25)}catch(e){}
 try{if(Notification.permission==='granted')new Notification('GOLD AI TRADER PRO',{body:m})}catch(e){}}}
 
+const lt=ms=>new Date(ms).toLocaleTimeString('en-GB',{timeZone:'Africa/Tripoli',hour:'2-digit',minute:'2-digit'});
+function planView(p,r){const A=(r.ind&&r.ind.atr)||0,now=Date.now(),px=tick?tick.price:p.entry;let st;
+if(now<=p.enterUntil)st=Math.abs(px-p.entry)<=0.3*A?'ادخل الآن عند Entry أو ضع أمراً معلقاً عليه. نافذة الدخول حتى '+lt(p.enterUntil)+' (ليبيا)':'السعر ابتعد عن الدخول: لا تطارد، انتظر عودته قبل '+lt(p.enterUntil);
+else st='انتهت نافذة الدخول، لا تدخل متأخراً.';
+return{signal:p.sig,setup:p.setup+' · مثبّتة منذ '+lt(p.at),reasons:['الحالة: '+st,'الخروج: عند TP1/TP2 أو الوقف، وإلا خروج زمني عند '+lt(p.exitBy)].concat(p.why||[]),score:null,
+trade:{entry:p.entry,sl:p.sl,tp1:p.tp1,tp2:p.tp2,rr1:1.5,rr2:2.5},ind:r.ind,votes:r.votes}}
 function render(){
 const open=marketOpen(new Date());
 $('market').textContent=open?'السوق مفتوح (تقديري)':'السوق مغلق (تقديري)';$('market').className='pill '+(open?'ok':'bad');
@@ -160,7 +168,7 @@ $('chg').textContent=Number.isFinite(tick.pct)?(tick.pct>0?'+':'')+tick.pct.toFi
 $('chg').style.color=tick.pct>0?'#26a69a':tick.pct<0?'#ef5350':'';
 $('spread').textContent=Number.isFinite(tick.ask-tick.bid)?f(tick.ask-tick.bid):'غير متوفر';
 $('upd').textContent=libya(new Date(lastOk))}else{$('price').textContent='--';$('chg').textContent='--';$('spread').textContent='--'}
-const r=res||{signal:'WAIT',reasons:[netErr||'لا توجد بيانات'],score:null,trade:null,ind:null};
+let r=res||{signal:'WAIT',reasons:[netErr||'لا توجد بيانات'],score:null,trade:null,ind:null};const plan=LOG.find(e=>!e.r);if(plan)r=planView(plan,r);
 $('sig').textContent=r.signal;$('sig').className='sig '+r.signal;
 $('sigAr').textContent={BUY:'شراء',SELL:'بيع',WAIT:'انتظار'}[r.signal];
 $('score').textContent=r.setup||'--';
