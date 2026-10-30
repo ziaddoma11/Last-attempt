@@ -100,8 +100,8 @@ return gh&&!sh?-1:gl&&!sl?1:0}
 function smc(cs,price,A,twin){
 const k=3,n=cs.length-1,{H,L}=swings(cs,k);let st=0,ev=[],bH=-1,bL=-1;
 for(let t=k+1;t<=n-1;t++){const sh=H.filter(x=>x.i+k<=t).pop(),sl=L.filter(x=>x.i+k<=t).pop();
-if(sh&&sh.i!==bH&&cs[t].c>sh.p){ev.push({t,dir:1,type:st===-1?'CHoCH':'BOS',oi:sl?sl.i:Math.max(0,t-5)});bH=sh.i;st=1}
-else if(sl&&sl.i!==bL&&cs[t].c<sl.p){ev.push({t,dir:-1,type:st===1?'CHoCH':'BOS',oi:sh?sh.i:Math.max(0,t-5)});bL=sl.i;st=-1}}
+if(sh&&sh.i!==bH&&cs[t].c>sh.p){ev.push({t,dir:1,lvl:sh.p,li:sh.i,type:st===-1?'CHoCH':'BOS',oi:sl?sl.i:Math.max(0,t-5)});bH=sh.i;st=1}
+else if(sl&&sl.i!==bL&&cs[t].c<sl.p){ev.push({t,dir:-1,lvl:sl.p,li:sl.i,type:st===1?'CHoCH':'BOS',oi:sh?sh.i:Math.max(0,t-5)});bL=sl.i;st=-1}}
 const h2=H.slice(-2),l2=L.slice(-2),struct=h2.length===2&&l2.length===2?(h2[1].p>h2[0].p&&l2[1].p>l2[0].p?'HH/HL صاعد':h2[1].p<h2[0].p&&l2[1].p<l2[0].p?'LH/LL هابط':'متذبذب'):'—';
 const e=ev[ev.length-1],fresh=!!e&&n-e.t<=40,d=fresh?e.dir:0,sv=smt(cs,twin);
 let sweep=null;for(let j=n-1;j>=Math.max(k+1,n-30)&&!sweep;j--){
@@ -109,14 +109,14 @@ for(const s of H)if(s.i+k<=j-1&&cs[j].h>s.p&&cs[j].c<s.p){sweep={j,dir:-1,lvl:s.
 if(!sweep)for(const s of L)if(s.i+k<=j-1&&cs[j].l<s.p&&cs[j].c>s.p){sweep={j,dir:1,lvl:s.p,wick:cs[j].l};break}}
 const fv=[];for(let i=Math.max(2,n-60);i<=n-1;i++){let f=null;
 if(cs[i-2].h<cs[i].l)f={dir:1,lo:cs[i-2].h,hi:cs[i].l};else if(cs[i-2].l>cs[i].h)f={dir:-1,lo:cs[i].h,hi:cs[i-2].l};
-if(!f)continue;let ok=true;for(let m=i+1;m<=n-1;m++){
+if(!f)continue;f.i=i;let ok=true;for(let m=i+1;m<=n-1;m++){
 if(f.dir===1){if(cs[m].c<f.lo){f.dir=-1;f.inv=true}else if(!f.inv&&cs[m].l<f.lo){ok=false;break}}
 else{if(cs[m].c>f.hi){f.dir=1;f.inv=true}else if(!f.inv&&cs[m].h>f.hi){ok=false;break}}}
 if(ok)fv.push(f)}
 let ob=null,leg=null;
 if(fresh){const oi=Math.max(0,e.oi),opp=j=>d===1?cs[j].c<cs[j].o:cs[j].c>cs[j].o;let q=oi;
 for(let j=oi;j<e.t;j++){if(opp(j)&&j+1<=e.t&&Math.abs(cs[j+1].c-cs[j+1].o)>=0.6*A&&(d===1?cs[j+1].c>cs[j+1].o:cs[j+1].c<cs[j+1].o)){q=j;break}}
-ob={lo:cs[q].l,hi:cs[q].h};
+ob={lo:cs[q].l,hi:cs[q].h,q};
 for(let j=e.t;j<=n-1;j++)if(d===1?cs[j].c<ob.lo:cs[j].c>ob.hi){ob=null;break}
 const sl2=cs.slice(oi,n+1);const o=d===1?cs[oi].l:cs[oi].h,ext=d===1?Math.max(...sl2.map(x=>x.h)):Math.min(...sl2.map(x=>x.l)),sz=Math.abs(ext-o);
 if(sz>1.5*A)leg={o,ext,sz,z1:d===1?ext-0.786*sz:ext+0.5*sz,z2:d===1?ext-0.5*sz:ext+0.786*sz}}
@@ -131,26 +131,29 @@ const votes=[{n:'هيكل السوق: '+struct,v:struct.includes('صاعد')?1:s
 {n:'Order Block',v:obHit?d:0},{n:'FVG / iFVG',v:fvgHit?d:0},{n:'فيبوناتشي 0.5–0.786',v:fibHit?d:0},{n:'CISD',v:cisd?d:0},{n:'SMT (XAGUSD)',v:sv}];
 const info={struct,last:e?e.type+(e.dir>0?' صاعد':' هابط')+(fresh?'':' (قديم)'):'—',sweep:sweep?(sweep.dir>0?'SSL @':'BSL @')+sweep.lvl.toFixed(1):'—',
 ob:ob?ob.lo.toFixed(1)+'–'+ob.hi.toFixed(1):'—',fvg:fz?(fz.inv?'iFVG ':'FVG ')+fz.lo.toFixed(1)+'–'+fz.hi.toFixed(1):'—',smt:twin?(sv>0?'صاعد':sv<0?'هابط':'لا تباعد'):'غير متاح'};
+info.z={fv:fv.slice(-4),ob:ob&&{lo:ob.lo,hi:ob.hi,q:ob.q},leg:leg&&{z1:leg.z1,z2:leg.z2},ev:ev.slice(-3),H:H.slice(-3),L:L.slice(-3)};
 const out={sig:'WAIT',setup:'SMC: '+struct,why:[],trade:null,conf:0,votes,info};
 if(!fresh){out.why=['لا يوجد كسر هيكل حديث (BOS/CHoCH)'];return out}
+const mk=(ep,sl0)=>{let slp=sl0,risk=Math.abs(ep-slp);if(risk<0.5*A){risk=0.5*A;slp=ep-d*risk}if(risk>3*A)return null;
+const sz=leg?leg.sz:risk*2,o=leg?leg.o:ep,tp1=o+d*1.272*sz,f14=o+d*1.414*sz;
+const dol=(d===1?H:L).map(x=>x.p).filter(p=>(p-tp1)*d>0).sort((a,b)=>d===1?a-b:b-a)[0],tp2=dol!=null?dol:f14;
+if((tp1-ep)*d<risk)return null;return{entry:ep,sl:slp,tp1,tp2,risk,rr1:(tp1-ep)*d/risk,rr2:Math.abs(tp2-ep)/risk,dol:dol!=null}};
 const modelA=obHit&&(fvgHit||cisd),modelB=fibHit&&cisd,entryOk=modelA||modelB;
 const pts=1+(sw?1:0)+(obHit?1:0)+(fvgHit?1:0)+(fibHit?1:0)+(cisd?1:0)+(sm?1:0);out.conf=pts/7;
 out.setup='SMC: '+e.type+(d>0?' صاعد':' هابط')+' · نقاط '+pts+'/7';
-if(!entryOk){out.why=['بانتظار عودة السعر لمنطقة الدخول: OB مع FVG/CISD أو فيبو 0.5–0.786 مع CISD'];return out}
+if(!entryOk){const zs=[];if(ob&&(d===1?ob.hi<price:ob.lo>price))zs.push({k:'Order Block',lo:ob.lo,hi:ob.hi});
+fv.filter(f=>f.dir===d&&(d===1?f.hi<price:f.lo>price)).slice(-1).forEach(f=>zs.push({k:f.inv?'iFVG':'FVG',lo:f.lo,hi:f.hi}));
+if(leg&&(d===1?leg.z2<price:leg.z1>price))zs.push({k:'فيبو 0.5–0.786',lo:Math.min(leg.z1,leg.z2),hi:Math.max(leg.z1,leg.z2)});
+zs.sort((a,b)=>Math.abs((a.lo+a.hi)/2-price)-Math.abs((b.lo+b.hi)/2-price));const z=zs[0];
+if(z){const tr=mk((z.lo+z.hi)/2,d===1?z.lo-0.15*A:z.hi+0.15*A);if(tr)out.info.watch=Object.assign({dir:d,k:z.k,lo:z.lo,hi:z.hi},tr)}
+out.why=['بانتظار عودة السعر لمنطقة الدخول: OB مع FVG/CISD أو فيبو 0.5–0.786 مع CISD'];return out}
 if(!(d===1?body>0:body<0)){out.why=['شمعة التأكيد عكس الاتجاه'];return out}
 if(pts<4){out.why=['توافق SMC غير كافٍ ('+pts+'/7)'];return out}
-const R2=[];
-if(obHit)R2.push(d===1?ob.lo:ob.hi);if(fvgHit)R2.push(d===1?fz.lo:fz.hi);if(fibHit)R2.push(d===1?leg.z1:leg.z2);if(sw)R2.push(sweep.wick);R2.push(d===1?cs[n-1].l:cs[n-1].h);
-let slp=d===1?Math.min(...R2)-0.15*A:Math.max(...R2)+0.15*A;let risk=Math.abs(price-slp);
-if(risk<0.5*A){risk=0.5*A;slp=price-d*risk}
-if(risk>3*A){out.why=['الوقف المرجعي بعيد (أكثر من 3 ATR)'];return out}
-const sz=leg?leg.sz:risk*2,o=leg?leg.o:price,tp1=o+d*1.272*sz,f14=o+d*1.414*sz;
-const dolArr=(d===1?H:L).map(x=>x.p).filter(p=>d===1?p>tp1:p<tp1).sort((a,b)=>d===1?a-b:b-a),dol=dolArr[0];
-const tp2=dol!=null?dol:f14;
-if((tp1-price)*d<risk){out.why=['الهدف 1.272 قريب (R/R أقل من 1)'];return out}
-out.sig=d===1?'BUY':'SELL';
-const tp2f=(tp2-tp1)*d>0?tp2:f14;out.trade={entry:price,sl:slp,tp1,tp2:tp2f,risk,rr1:(tp1-price)*d/risk,rr2:Math.abs(tp2f-price)/risk};
-out.why=votes.filter(v=>v.v===d).map(v=>v.n).concat(['SL خلف منطقة الدخول/القاع المرجعي','TP1 = امتداد فيبو 1.272، TP2 = '+(dol!=null&&(tp2-tp1)*d>0?'سيولة DOL عند '+dol.toFixed(1):'امتداد 1.414')]);
+const R2=[];if(obHit)R2.push(d===1?ob.lo:ob.hi);if(fvgHit)R2.push(d===1?fz.lo:fz.hi);if(fibHit)R2.push(d===1?leg.z1:leg.z2);if(sw)R2.push(sweep.wick);R2.push(d===1?cs[n-1].l:cs[n-1].h);
+const slp=d===1?Math.min(...R2)-0.15*A:Math.max(...R2)+0.15*A,tr=mk(price,slp);
+if(!tr){out.why=['الوقف المرجعي بعيد (أكثر من 3 ATR) أو الهدف 1.272 قريب (R/R أقل من 1)'];return out}
+out.sig=d===1?'BUY':'SELL';out.trade=tr;
+out.why=votes.filter(v=>v.v===d).map(v=>v.n).concat(['SL خلف منطقة الدخول/القاع المرجعي','TP1 = امتداد فيبو 1.272، TP2 = '+(tr.dol?'سيولة DOL عند '+tr.tp2.toFixed(1):'امتداد 1.414')]);
 return out}
 function decideAny(cs,price,htf,twin,mode){const cl=decide(cs,price,htf);if(!cl||mode==='classic')return cl;
 const sm=smc(cs,price,cl.ind.atr,twin);cl.ind.smc=sm.info;
@@ -204,12 +207,13 @@ let LOG=[];try{LOG=JSON.parse(localStorage.getItem('gatp_log')||'[]')}catch(e){}
 const saveLog=()=>{try{localStorage.setItem('gatp_log',JSON.stringify(LOG.slice(-200)))}catch(e){}};
 let sc=0,lastS='';
 function logUpdate(){if(!res||!tick||!candles.length)return;
+LOG.forEach(e=>{if(!e.r&&(e.mode||'classic')!==S.mode)e.r='T'});
 LOG.forEach(e=>{if(e.r)return;if(!e.exitBy){e.r='T';return}const B=e.sig==='BUY',chk=(h,l)=>{if(e.r)return;const sl=B?l<=e.sl:h>=e.sl,tp=B?h>=e.tp1:l<=e.tp1;if(sl)e.r='L';else if(tp)e.r='W'};
 candles.forEach(k=>{if(k.t>e.t0)chk(k.h,k.l)});chk(tick.price,tick.price);if(!e.r&&Date.now()>e.exitBy)e.r='T'});
 if(res.signal===lastS)sc++;else{sc=1;lastS=res.signal}
 const key=candles.length>1?candles[candles.length-2].t:0;
 if(res.signal!=='WAIT'&&res.trade&&!LOG.some(e=>!e.r)&&sc>=3&&!LOG.some(e=>e.key===key&&e.tf===S.tf)){const t=res.trade,T=TFS[S.tf]*1000;
-LOG.push({key,tf:S.tf,t0:candles[candles.length-1].t,at:Date.now(),sig:res.signal,setup:res.setup,entry:t.entry,sl:t.sl,tp1:t.tp1,tp2:t.tp2,rr1:t.rr1,rr2:t.rr2,why:res.reasons.slice(),enterUntil:Date.now()+3*T,exitBy:Date.now()+12*T,r:null});alertSig(res.signal)}
+LOG.push({mode:S.mode,key,tf:S.tf,t0:candles[candles.length-1].t,at:Date.now(),sig:res.signal,setup:res.setup,entry:t.entry,sl:t.sl,tp1:t.tp1,tp2:t.tp2,rr1:t.rr1,rr2:t.rr2,why:res.reasons.slice(),enterUntil:Date.now()+3*T,exitBy:Date.now()+12*T,r:null});alertSig(res.signal)}
 saveLog();renderLog()}
 function renderLog(){const el=$('log');if(!el)return;const w=LOG.filter(e=>e.r==='W').length,l=LOG.filter(e=>e.r==='L').length,o=LOG.filter(e=>!e.r).length;
 $('logStat').textContent='رابحة (TP1): '+w+' · خاسرة: '+l+' · مفتوحة: '+o+(w+l?' · نسبة النجاح الفعلية: '+Math.round(w/(w+l)*100)+'%':'');
@@ -227,6 +231,15 @@ if(now<=p.enterUntil)st=Math.abs(px-p.entry)<=0.3*A?'ادخل الآن عند En
 else st='انتهت نافذة الدخول، لا تدخل متأخراً.';
 return{signal:p.sig,setup:p.setup+' · مثبّتة منذ '+lt(p.at),reasons:['الحالة: '+st,'الخروج: عند TP1/TP2 أو الوقف، وإلا خروج زمني عند '+lt(p.exitBy)].concat(p.why||[]),score:null,
 trade:{entry:p.entry,sl:p.sl,tp1:p.tp1,tp2:p.tp2,rr1:p.rr1||1.5,rr2:p.rr2||2.5},ind:r.ind,votes:r.votes}}
+function narrate(r,plan){const m=res&&res.ind&&res.ind.smc;if(S.mode==='classic'||!m)return 'اختر وضع SMC من القائمة لعرض تحليل المحلل المؤسسي.';
+const L=['الهيكل: '+m.struct+' · آخر كسر: '+m.last+'.','السيولة: '+(m.sweep!=='—'?'تم سحب '+m.sweep:'لا يوجد سحب سيولة حديث')+'.','المناطق: OB '+m.ob+' · FVG/iFVG '+m.fvg+' · SMT '+m.smt+'.'];
+if(plan){L.push('التنفيذ: '+(plan.sig==='BUY'?'شراء':'بيع')+' عند '+plan.entry.toFixed(2)+'، نافذة الدخول حتى '+lt(plan.enterUntil)+' (ليبيا).');
+L.push('الخروج: عند TP1 '+plan.tp1.toFixed(2)+' أغلق جزءاً وحرّك الوقف للدخول، والباقي عند TP2 '+plan.tp2.toFixed(2)+'. الوقف '+plan.sl.toFixed(2)+'. وإن لم يتحقق شيء فاخرج عند '+lt(plan.exitBy)+'.')}
+else if(m.watch){const w=m.watch,B=w.dir>0;L.push('السيناريو: '+(B?'شراء':'بيع')+' محتمل. ينتظر المحلل عودة السعر إلى '+w.k+' ('+w.lo.toFixed(2)+' – '+w.hi.toFixed(2)+').');
+L.push('أمر معلّق مقترح: '+(B?'BUY LIMIT':'SELL LIMIT')+' عند '+w.entry.toFixed(2)+' · SL '+w.sl.toFixed(2)+' · TP1 '+w.tp1.toFixed(2)+' · TP2 '+w.tp2.toFixed(2)+' (R/R 1:'+w.rr1.toFixed(1)+').');
+L.push('ألغِ الأمر إن لم يُنفَّذ حتى '+lt(Date.now()+12*TFS[S.tf]*1000)+' أو إذا أغلقت شمعة '+(B?'تحت ':'فوق ')+(B?w.lo:w.hi).toFixed(2)+'.')}
+else L.push('السيناريو: لا توجد منطقة دخول واضحة الآن. الأفضل الانتظار.');
+return L.join('\n')}
 function render(){
 const open=marketOpen(new Date());
 $('market').textContent=open?'السوق مفتوح (تقديري)':'السوق مغلق (تقديري)';$('market').className='pill '+(open?'ok':'bad');
@@ -241,7 +254,7 @@ $('upd').textContent=libya(new Date(lastOk))}else{$('price').textContent='--';$(
 let r=res||{signal:'WAIT',reasons:[netErr||'لا توجد بيانات'],score:null,trade:null,ind:null};const plan=LOG.find(e=>!e.r);if(plan)r=planView(plan,r);
 $('sig').textContent=r.signal;$('sig').className='sig '+r.signal;
 $('sigAr').textContent={BUY:'شراء',SELL:'بيع',WAIT:'انتظار'}[r.signal];
-$('score').textContent=r.setup||'--';
+$('score').textContent=r.setup||'--';$('analyst').textContent=narrate(r,plan);
 $('votes').innerHTML='';(r.votes||[]).forEach(v=>{const d=document.createElement('div');d.className='ses';d.textContent=v.n;const x=document.createElement('span');x.textContent=v.v>0?'▲ شراء':v.v<0?'▼ بيع':'— محايد';x.style.color=v.v>0?'#26a69a':v.v<0?'#ef5350':'#777';d.appendChild(x);$('votes').appendChild(d)});
 $('bt').textContent=bt?(bt.n?'اختبار رجعي على آخر '+candles.length+' شمعة: '+bt.n+' صفقة، بلغت TP1 قبل الوقف في '+bt.w+' ('+Math.round(bt.w/bt.n*100)+'%). عينة صغيرة، لا تضمن المستقبل. نقطة التعادل لهذا R/R حوالي 40%.':'الاختبار الرجعي: لم تظهر صفقات في البيانات المتاحة.'):'';
 $('reasons').innerHTML='';r.reasons.forEach(t=>{const li=document.createElement('li');li.textContent=t;$('reasons').appendChild(li)});
@@ -269,6 +282,18 @@ if(t)[t.sl,t.tp1,t.tp2,t.entry].forEach(p=>{hi=Math.max(hi,p);lo=Math.min(lo,p)}
 const pad=(hi-lo)*.05||1;hi+=pad;lo-=pad;const pw=52,cw=(W-pw)/N,Y=p=>H-(p-lo)/(hi-lo)*H;
 x.font='11px sans-serif';x.textAlign='left';x.fillStyle='#777';x.strokeStyle='#222';
 for(let g=0;g<5;g++){const p=lo+(hi-lo)*g/4;x.beginPath();x.moveTo(0,Y(p));x.lineTo(W-pw,Y(p));x.stroke();x.fillText(p.toFixed(1),W-pw+4,Y(p)-2)}
+const sm=res&&res.ind&&res.ind.smc&&S.mode!=='classic'?res.ind.smc:null;
+if(sm&&sm.z){const z=sm.z,off=candles.length-N,X=i=>(i-off)*cw+cw/2,R=W-pw;
+const box=(lo,hi,i0,fill,stroke,label)=>{const y1=Math.max(0,Y(hi)),y2=Math.min(H,Y(lo));if(y2<=y1)return;const x0=Math.max(0,X(i0)-cw/2);
+x.fillStyle=fill;x.fillRect(x0,y1,R-x0,y2-y1);if(stroke){x.strokeStyle=stroke;x.setLineDash([3,3]);x.strokeRect(x0,y1,R-x0,y2-y1);x.setLineDash([])}
+x.fillStyle=stroke||'#ccc';x.font='10px sans-serif';x.textAlign='right';x.fillText(label,R-3,y1+10);x.textAlign='left'};
+if(z.leg)box(Math.min(z.leg.z1,z.leg.z2),Math.max(z.leg.z1,z.leg.z2),off,'rgba(212,175,55,.10)','#d4af37','فيبو 0.5–0.786');
+z.fv.forEach(f=>box(f.lo,f.hi,f.i-2,f.dir>0?'rgba(38,166,154,.18)':'rgba(239,83,80,.18)',f.inv?'#b388ff':null,f.inv?'iFVG':'FVG'));
+if(z.ob)box(z.ob.lo,z.ob.hi,z.ob.q,'rgba(79,195,247,.20)','#4fc3f7','OB');
+if(sm.watch)box(sm.watch.lo,sm.watch.hi,off,'rgba(255,255,255,.07)','#ffffff','مراقبة: '+sm.watch.k);
+const ln=(p,i0,col,lab)=>{if(p<lo||p>hi)return;x.strokeStyle=col;x.setLineDash([2,3]);x.beginPath();x.moveTo(Math.max(0,X(i0)),Y(p));x.lineTo(R,Y(p));x.stroke();x.setLineDash([]);x.fillStyle=col;x.font='10px sans-serif';x.fillText(lab,R-30,Y(p)-2)};
+z.H.forEach(s=>ln(s.p,s.i,'#ff9800','BSL'));z.L.forEach(s=>ln(s.p,s.i,'#ff9800','SSL'));
+z.ev.forEach(e=>{if(e.li<off||e.lvl<lo||e.lvl>hi)return;const c=e.dir>0?'#26a69a':'#ef5350';x.strokeStyle=c;x.beginPath();x.moveTo(X(e.li),Y(e.lvl));x.lineTo(X(e.t),Y(e.lvl));x.stroke();x.fillStyle=c;x.font='bold 10px sans-serif';x.fillText(e.type,(X(e.li)+X(e.t))/2-10,Y(e.lvl)+(e.dir>0?-3:11))})}
 v.forEach((k,i)=>{const cx=i*cw+cw/2,up=k.c>=k.o;x.strokeStyle=x.fillStyle=up?'#26a69a':'#ef5350';
 x.beginPath();x.moveTo(cx,Y(k.h));x.lineTo(cx,Y(k.l));x.stroke();x.fillRect(cx-cw*.35,Math.min(Y(k.o),Y(k.c)),cw*.7,Math.max(1,Math.abs(Y(k.o)-Y(k.c))))});
 [[e20,'#d4af37'],[e50,'#4fc3f7']].forEach(([e,col])=>{x.strokeStyle=col;x.lineWidth=1.5;x.beginPath();let s=false;
