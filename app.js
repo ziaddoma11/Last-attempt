@@ -67,7 +67,7 @@ why=V.filter(x=>B?x.v>0:x.v<0).map(x=>x.n);const lvl=B?lv.res:lv.sup;if(lvl!=nul
 why.push('SL حسب آخر قاع/قمة، الأهداف 1.5R و2.5R')}
 else if(!why.length)why=['لا يوجد توافق كافٍ بين الاستراتيجيات: الأفضل الانتظار'];
 return{sig,setup,why,trade,conf:Math.max(b,s)/N,ind,votes:V}}
-function analyze(cs,price,tfSec,now,open,htf,twin,mode){
+function analyze(cs,price,tfSec,now,open,htf,twin,mode,gate){
 const out={signal:'WAIT',reasons:[],score:null,trade:null,ind:null,setup:''};
 if(!cs||cs.length<60){out.reasons.push('بيانات الشموع ناقصة (أقل من 60 شمعة)');return out}
 if(!Number.isFinite(price)){out.reasons.push('السعر الحالي غير متوفر');return out}
@@ -78,6 +78,10 @@ const age=now-cs[cs.length-1].t;if(age>tfSec*1000*3){out.reasons.push('البي�
 if(Math.abs(price-cs[cs.length-1].c)>2*A){out.reasons.push('تضارب: السعر الحالي بعيد عن آخر شمعة');return out}
 out.signal=d.sig;out.setup=d.setup;out.trade=d.trade;out.score=d.sig==='WAIT'?null:d.conf;
 out.reasons=d.why;
+if(out.signal!=='WAIT'&&gate&&gate.min>0&&gate.bt){const b=gate.bt;
+if(b.n>=5){const wr=Math.round(b.w/b.n*100);if(wr<gate.min){out.signal='WAIT';out.trade=null;out.score=null;out.reasons=['فلتر الأداء: نسبة النجاح التاريخية لهذه الاستراتيجية '+wr+'% (من '+b.n+' صفقة) أقل من الحد '+gate.min+'%، فلا إشارة.']}
+else out.reasons=['نسبة النجاح التاريخية '+wr+'% من '+b.n+' صفقة (اختبار رجعي، لا يضمن المستقبل)'].concat(out.reasons)}
+else out.reasons=['تنبيه: عينة الاختبار الرجعي صغيرة ('+b.n+' صفقة)، النسبة غير موثقة'].concat(out.reasons)}
 return out}
 function backtest(cs,mode){let w=0,l=0,o=0,i=60;
 while(i<cs.length-1){const d=decideAny(cs.slice(0,i+1),cs[i].c,null,null,mode||'classic');
@@ -103,6 +107,7 @@ for(let t=k+1;t<=n-1;t++){const sh=H.filter(x=>x.i+k<=t).pop(),sl=L.filter(x=>x.
 if(sh&&sh.i!==bH&&cs[t].c>sh.p){ev.push({t,dir:1,lvl:sh.p,li:sh.i,type:st===-1?'CHoCH':'BOS',oi:sl?sl.i:Math.max(0,t-5)});bH=sh.i;st=1}
 else if(sl&&sl.i!==bL&&cs[t].c<sl.p){ev.push({t,dir:-1,lvl:sl.p,li:sl.i,type:st===1?'CHoCH':'BOS',oi:sh?sh.i:Math.max(0,t-5)});bL=sl.i;st=-1}}
 const h2=H.slice(-2),l2=L.slice(-2),struct=h2.length===2&&l2.length===2?(h2[1].p>h2[0].p&&l2[1].p>l2[0].p?'HH/HL صاعد':h2[1].p<h2[0].p&&l2[1].p<l2[0].p?'LH/LL هابط':'متذبذب'):'—';
+const cc=cs.map(x=>x.c),E20=ema(cc,20)[n],E50=ema(cc,50)[n],emaV=E20>E50?1:E20<E50?-1:0;
 const e=ev[ev.length-1],fresh=!!e&&n-e.t<=40,d=fresh?e.dir:0,sv=smt(cs,twin);
 let sweep=null;for(let j=n-1;j>=Math.max(k+1,n-30)&&!sweep;j--){
 for(const s of H)if(s.i+k<=j-1&&cs[j].h>s.p&&cs[j].c<s.p){sweep={j,dir:-1,lvl:s.p,wick:cs[j].h};break}
@@ -128,16 +133,20 @@ const sw=!!(sweep&&sweep.dir===d&&d),sm=sv===d&&d!==0,body=cs[n-1].c-cs[n-1].o;
 const votes=[{n:'هيكل السوق: '+struct,v:struct.includes('صاعد')?1:struct.includes('هابط')?-1:0},
 {n:'آخر كسر: '+(e?e.type+(e.dir>0?' صاعد':' هابط'):'—'),v:fresh?e.dir:0},
 {n:'سحب السيولة '+(sweep?(sweep.dir>0?'SSL':'BSL'):'—'),v:sweep?sweep.dir:0},
-{n:'Order Block',v:obHit?d:0},{n:'FVG / iFVG',v:fvgHit?d:0},{n:'فيبوناتشي 0.5–0.786',v:fibHit?d:0},{n:'CISD',v:cisd?d:0},{n:'SMT (XAGUSD)',v:sv}];
+{n:'Order Block',v:obHit?d:0},{n:'FVG / iFVG',v:fvgHit?d:0},{n:'فيبوناتشي 0.5–0.786',v:fibHit?d:0},{n:'CISD',v:cisd?d:0},{n:'SMT (XAGUSD)',v:sv},{n:'فلتر EMA20/50',v:emaV}];
 const info={struct,last:e?e.type+(e.dir>0?' صاعد':' هابط')+(fresh?'':' (قديم)'):'—',sweep:sweep?(sweep.dir>0?'SSL @':'BSL @')+sweep.lvl.toFixed(1):'—',
 ob:ob?ob.lo.toFixed(1)+'–'+ob.hi.toFixed(1):'—',fvg:fz?(fz.inv?'iFVG ':'FVG ')+fz.lo.toFixed(1)+'–'+fz.hi.toFixed(1):'—',smt:twin?(sv>0?'صاعد':sv<0?'هابط':'لا تباعد'):'غير متاح'};
-info.z={fv:fv.slice(-4),ob:ob&&{lo:ob.lo,hi:ob.hi,q:ob.q},leg:leg&&{z1:leg.z1,z2:leg.z2},ev:ev.slice(-3),H:H.slice(-3),L:L.slice(-3)};
+info.z={fv:fv.slice(-4),ob:ob&&{lo:ob.lo,hi:ob.hi,q:ob.q},leg:leg&&{z1:leg.z1,z2:leg.z2},ev:ev.slice(-3),H:H.slice(-3),L:L.slice(-3),sweep:sweep&&{j:sweep.j,dir:sweep.dir,wick:sweep.wick}};
 const out={sig:'WAIT',setup:'SMC: '+struct,why:[],trade:null,conf:0,votes,info};
 if(!fresh){out.why=['لا يوجد كسر هيكل حديث (BOS/CHoCH)'];return out}
 const mk=(ep,sl0)=>{let slp=sl0,risk=Math.abs(ep-slp);if(risk<0.5*A){risk=0.5*A;slp=ep-d*risk}if(risk>3*A)return null;
-const sz=leg?leg.sz:risk*2,o=leg?leg.o:ep,tp1=o+d*1.272*sz,f14=o+d*1.414*sz;
-const dol=(d===1?H:L).map(x=>x.p).filter(p=>(p-tp1)*d>0).sort((a,b)=>d===1?a-b:b-a)[0],tp2=dol!=null?dol:f14;
-if((tp1-ep)*d<risk)return null;return{entry:ep,sl:slp,tp1,tp2,risk,rr1:(tp1-ep)*d/risk,rr2:Math.abs(tp2-ep)/risk,dol:dol!=null}};
+const sz=leg?leg.sz:risk*2,o=leg?leg.o:ep,f14=o+d*1.414*sz;let tp1=o+d*1.272*sz,s1='فيبو 1.272';
+if((tp1-ep)*d<1.5*risk){const blk=(d===1?H:L).map(x=>x.p).filter(p=>(p-ep)*d>0).sort((a,b)=>d===1?a-b:b-a)[0];
+if(blk!=null&&(blk-ep)*d<1.5*risk)return null;tp1=ep+d*1.5*risk;s1='R/R 1:1.5'}
+const dol=(d===1?H:L).map(x=>x.p).filter(p=>(p-tp1)*d>0).sort((a,b)=>d===1?a-b:b-a)[0];
+let tp2=dol!=null?dol:f14,s2=dol!=null?'سيولة DOL':'فيبو 1.414';
+if((tp2-ep)*d<2.5*risk){tp2=ep+d*2.5*risk;s2='R/R 1:2.5'}
+return{entry:ep,sl:slp,tp1,tp2,risk,s1,s2,rr1:(tp1-ep)*d/risk,rr2:(tp2-ep)*d/risk}};
 const modelA=obHit&&(fvgHit||cisd),modelB=fibHit&&cisd,entryOk=modelA||modelB;
 const pts=1+(sw?1:0)+(obHit?1:0)+(fvgHit?1:0)+(fibHit?1:0)+(cisd?1:0)+(sm?1:0);out.conf=pts/7;
 out.setup='SMC: '+e.type+(d>0?' صاعد':' هابط')+' · نقاط '+pts+'/7';
@@ -145,15 +154,16 @@ if(!entryOk){const zs=[];if(ob&&(d===1?ob.hi<price:ob.lo>price))zs.push({k:'Orde
 fv.filter(f=>f.dir===d&&(d===1?f.hi<price:f.lo>price)).slice(-1).forEach(f=>zs.push({k:f.inv?'iFVG':'FVG',lo:f.lo,hi:f.hi}));
 if(leg&&(d===1?leg.z2<price:leg.z1>price))zs.push({k:'فيبو 0.5–0.786',lo:Math.min(leg.z1,leg.z2),hi:Math.max(leg.z1,leg.z2)});
 zs.sort((a,b)=>Math.abs((a.lo+a.hi)/2-price)-Math.abs((b.lo+b.hi)/2-price));const z=zs[0];
-if(z){const tr=mk((z.lo+z.hi)/2,d===1?z.lo-0.15*A:z.hi+0.15*A);if(tr)out.info.watch=Object.assign({dir:d,k:z.k,lo:z.lo,hi:z.hi},tr)}
+if(z&&emaV===d){const tr=mk((z.lo+z.hi)/2,d===1?z.lo-0.15*A:z.hi+0.15*A);if(tr)out.info.watch=Object.assign({dir:d,k:z.k,lo:z.lo,hi:z.hi},tr)}
 out.why=['بانتظار عودة السعر لمنطقة الدخول: OB مع FVG/CISD أو فيبو 0.5–0.786 مع CISD'];return out}
 if(!(d===1?body>0:body<0)){out.why=['شمعة التأكيد عكس الاتجاه'];return out}
 if(pts<4){out.why=['توافق SMC غير كافٍ ('+pts+'/7)'];return out}
+if(emaV!==d){out.why=['فلتر EMA20/50: اتجاه المتوسطات لا يوافق الصفقة'];return out}
 const R2=[];if(obHit)R2.push(d===1?ob.lo:ob.hi);if(fvgHit)R2.push(d===1?fz.lo:fz.hi);if(fibHit)R2.push(d===1?leg.z1:leg.z2);if(sw)R2.push(sweep.wick);R2.push(d===1?cs[n-1].l:cs[n-1].h);
 const slp=d===1?Math.min(...R2)-0.15*A:Math.max(...R2)+0.15*A,tr=mk(price,slp);
 if(!tr){out.why=['الوقف المرجعي بعيد (أكثر من 3 ATR) أو الهدف 1.272 قريب (R/R أقل من 1)'];return out}
 out.sig=d===1?'BUY':'SELL';out.trade=tr;
-out.why=votes.filter(v=>v.v===d).map(v=>v.n).concat(['SL خلف منطقة الدخول/القاع المرجعي','TP1 = امتداد فيبو 1.272، TP2 = '+(tr.dol?'سيولة DOL عند '+tr.tp2.toFixed(1):'امتداد 1.414')]);
+out.why=votes.filter(v=>v.v===d).map(v=>v.n).concat(['SL خلف منطقة الدخول/القاع المرجعي','TP1 = '+tr.s1+'، TP2 = '+tr.s2+' ('+tr.tp2.toFixed(1)+')']);
 return out}
 function decideAny(cs,price,htf,twin,mode){const cl=decide(cs,price,htf);if(!cl||mode==='classic')return cl;
 const sm=smc(cs,price,cl.ind.atr,twin);cl.ind.smc=sm.info;
@@ -180,7 +190,7 @@ if(typeof module!=='undefined')module.exports={ema,rsi,atr,levels,analyze,decide
 /* ---------- الواجهة ---------- */
 if(typeof document!=='undefined'){
 const $=id=>document.getElementById(id);
-const S=Object.assign({tf:'5m',mode:'smc',cap:30,risk:2,cs:'',notify:false},JSON.parse((()=>{try{return localStorage.getItem('gatp')||'{}'}catch(e){return'{}'}})()));
+const S=Object.assign({tf:'5m',mode:'smc',minwr:70,cap:30,risk:2,cs:'',notify:false},JSON.parse((()=>{try{return localStorage.getItem('gatp')||'{}'}catch(e){return'{}'}})()));
 const save=()=>{try{localStorage.setItem('gatp',JSON.stringify(S))}catch(e){}};
 let candles=[],twinC=null,htf=null,bt=null,tick=null,res=null,prevSig=null,lastOk=null,netErr=null;
 const f=(v,d=2)=>Number.isFinite(v)?v.toFixed(d):'--';
@@ -188,7 +198,7 @@ const libya=d=>d.toLocaleTimeString('en-GB',{timeZone:'Africa/Tripoli',hour:'2-d
 
 async function getJSON(u){const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
 async function load(){
-try{const [t,c]=await Promise.all([getJSON(API),getJSON(API+'/ohlc?interval='+S.tf+'&limit=180')]);
+try{const [t,c]=await Promise.all([getJSON(API),getJSON(API+'/ohlc?interval='+S.tf+'&limit=300').catch(()=>getJSON(API+'/ohlc?interval='+S.tf+'&limit=180'))]);
 tick=parseTick(t);candles=parseCandles(c);lastOk=Date.now();netErr=null;htf=null;
 if(S.tf==='5m'){try{const h=parseCandles(await getJSON(API+'/ohlc?interval=15m&limit=180')).map(k=>k.c),a=ema(h,20).pop(),b=ema(h,50).pop();
 if(a!=null&&b!=null)htf=a>b&&h[h.length-1]>b?'up':a<b&&h[h.length-1]<b?'down':'flat'}catch(e){htf=null}}
@@ -201,10 +211,12 @@ try{tick=parseTick(await getJSON(API));lastOk=Date.now();netErr=null;
 const k=candles[candles.length-1];if(k&&Date.now()<k.t+TFS[S.tf]*1000){k.c=tick.price;k.h=Math.max(k.h,tick.price);k.l=Math.min(k.l,tick.price)}
 compute();render()}catch(e){netErr=navigator.onLine?'انقطع تحديث السعر: '+e.message:'لا يوجد اتصال بالإنترنت.';compute();render()}finally{busy=false}}
 function compute(){if(netErr||!tick||!candles.length){res=null;return}
-res=analyze(candles,tick.price,TFS[S.tf],Date.now(),marketOpen(new Date()),htf,twinC,S.mode);
+res=analyze(candles,tick.price,TFS[S.tf],Date.now(),marketOpen(new Date()),htf,twinC,S.mode,{bt,min:+S.minwr});
 logUpdate()}
 let LOG=[];try{LOG=JSON.parse(localStorage.getItem('gatp_log')||'[]')}catch(e){}
 const saveLog=()=>{try{localStorage.setItem('gatp_log',JSON.stringify(LOG.slice(-200)))}catch(e){}};
+function stepSize(){const v=candles.slice(-21);let t=0;for(let i=1;i<v.length;i++)t+=Math.abs(v[i].c-v[i-1].c);return t/Math.max(1,v.length-1)}
+const etaN=d=>Math.min(36,Math.max(3,Math.ceil((d/(stepSize()||1))**2)));
 let sc=0,lastS='';
 function logUpdate(){if(!res||!tick||!candles.length)return;
 LOG.forEach(e=>{if(!e.r&&(e.mode||'classic')!==S.mode)e.r='T'});
@@ -213,7 +225,7 @@ candles.forEach(k=>{if(k.t>e.t0)chk(k.h,k.l)});chk(tick.price,tick.price);if(!e.
 if(res.signal===lastS)sc++;else{sc=1;lastS=res.signal}
 const key=candles.length>1?candles[candles.length-2].t:0;
 if(res.signal!=='WAIT'&&res.trade&&!LOG.some(e=>!e.r)&&sc>=3&&!LOG.some(e=>e.key===key&&e.tf===S.tf)){const t=res.trade,T=TFS[S.tf]*1000;
-LOG.push({mode:S.mode,key,tf:S.tf,t0:candles[candles.length-1].t,at:Date.now(),sig:res.signal,setup:res.setup,entry:t.entry,sl:t.sl,tp1:t.tp1,tp2:t.tp2,rr1:t.rr1,rr2:t.rr2,why:res.reasons.slice(),enterUntil:Date.now()+3*T,exitBy:Date.now()+12*T,r:null});alertSig(res.signal)}
+LOG.push({mode:S.mode,key,tf:S.tf,t0:candles[candles.length-1].t,at:Date.now(),sig:res.signal,setup:res.setup,entry:t.entry,sl:t.sl,tp1:t.tp1,tp2:t.tp2,rr1:t.rr1,rr2:t.rr2,why:res.reasons.slice(),enterUntil:Date.now()+3*T,e1:etaN(Math.abs(t.tp1-t.entry)),e2:etaN(Math.abs(t.tp2-t.entry)),exitBy:Date.now()+Math.min(36,Math.max(6,Math.ceil(etaN(Math.abs(t.tp2-t.entry))*1.5)))*T,r:null});alertSig(res.signal)}
 saveLog();renderLog()}
 function renderLog(){const el=$('log');if(!el)return;const w=LOG.filter(e=>e.r==='W').length,l=LOG.filter(e=>e.r==='L').length,o=LOG.filter(e=>!e.r).length;
 $('logStat').textContent='رابحة (TP1): '+w+' · خاسرة: '+l+' · مفتوحة: '+o+(w+l?' · نسبة النجاح الفعلية: '+Math.round(w/(w+l)*100)+'%':'');
@@ -229,12 +241,12 @@ const lt=ms=>new Date(ms).toLocaleTimeString('en-GB',{timeZone:'Africa/Tripoli',
 function planView(p,r){const A=(r.ind&&r.ind.atr)||0,now=Date.now(),px=tick?tick.price:p.entry;let st;
 if(now<=p.enterUntil)st=Math.abs(px-p.entry)<=0.3*A?'ادخل الآن عند Entry أو ضع أمراً معلقاً عليه. نافذة الدخول حتى '+lt(p.enterUntil)+' (ليبيا)':'السعر ابتعد عن الدخول: لا تطارد، انتظر عودته قبل '+lt(p.enterUntil);
 else st='انتهت نافذة الدخول، لا تدخل متأخراً.';
-return{signal:p.sig,setup:p.setup+' · مثبّتة منذ '+lt(p.at),reasons:['الحالة: '+st,'الخروج: عند TP1/TP2 أو الوقف، وإلا خروج زمني عند '+lt(p.exitBy)].concat(p.why||[]),score:null,
+return{signal:p.sig,setup:p.setup+' · مثبّتة منذ '+lt(p.at),reasons:['الحالة: '+st,'الخروج: عند TP1/TP2 أو الوقف، وإلا خروج زمني عند '+lt(p.exitBy)].concat(p.e1?['المدة المتوقعة (تقدير إحصائي من حركة آخر 20 شمعة): TP1 ≈ '+lt(p.at+p.e1*TFS[p.tf]*1000)+' · TP2 ≈ '+lt(p.at+p.e2*TFS[p.tf]*1000)]:[]).concat(p.why||[]),score:null,
 trade:{entry:p.entry,sl:p.sl,tp1:p.tp1,tp2:p.tp2,rr1:p.rr1||1.5,rr2:p.rr2||2.5},ind:r.ind,votes:r.votes}}
 function narrate(r,plan){const m=res&&res.ind&&res.ind.smc;if(S.mode==='classic'||!m)return 'اختر وضع SMC من القائمة لعرض تحليل المحلل المؤسسي.';
 const L=['الهيكل: '+m.struct+' · آخر كسر: '+m.last+'.','السيولة: '+(m.sweep!=='—'?'تم سحب '+m.sweep:'لا يوجد سحب سيولة حديث')+'.','المناطق: OB '+m.ob+' · FVG/iFVG '+m.fvg+' · SMT '+m.smt+'.'];
 if(plan){L.push('التنفيذ: '+(plan.sig==='BUY'?'شراء':'بيع')+' عند '+plan.entry.toFixed(2)+'، نافذة الدخول حتى '+lt(plan.enterUntil)+' (ليبيا).');
-L.push('الخروج: عند TP1 '+plan.tp1.toFixed(2)+' أغلق جزءاً وحرّك الوقف للدخول، والباقي عند TP2 '+plan.tp2.toFixed(2)+'. الوقف '+plan.sl.toFixed(2)+'. وإن لم يتحقق شيء فاخرج عند '+lt(plan.exitBy)+'.')}
+L.push('الخروج: عند TP1 '+plan.tp1.toFixed(2)+' أغلق جزءاً وحرّك الوقف للدخول، والباقي عند TP2 '+plan.tp2.toFixed(2)+'. الوقف '+plan.sl.toFixed(2)+'. وإن لم يتحقق شيء فاخرج عند '+lt(plan.exitBy)+'.'+(plan.e1?' المدة المتوقعة: TP1 ≈ '+lt(plan.at+plan.e1*TFS[plan.tf]*1000)+'، TP2 ≈ '+lt(plan.at+plan.e2*TFS[plan.tf]*1000)+'.':''))}
 else if(m.watch){const w=m.watch,B=w.dir>0;L.push('السيناريو: '+(B?'شراء':'بيع')+' محتمل. ينتظر المحلل عودة السعر إلى '+w.k+' ('+w.lo.toFixed(2)+' – '+w.hi.toFixed(2)+').');
 L.push('أمر معلّق مقترح: '+(B?'BUY LIMIT':'SELL LIMIT')+' عند '+w.entry.toFixed(2)+' · SL '+w.sl.toFixed(2)+' · TP1 '+w.tp1.toFixed(2)+' · TP2 '+w.tp2.toFixed(2)+' (R/R 1:'+w.rr1.toFixed(1)+').');
 L.push('ألغِ الأمر إن لم يُنفَّذ حتى '+lt(Date.now()+12*TFS[S.tf]*1000)+' أو إذا أغلقت شمعة '+(B?'تحت ':'فوق ')+(B?w.lo:w.hi).toFixed(2)+'.')}
@@ -293,6 +305,7 @@ if(z.ob)box(z.ob.lo,z.ob.hi,z.ob.q,'rgba(79,195,247,.20)','#4fc3f7','OB');
 if(sm.watch)box(sm.watch.lo,sm.watch.hi,off,'rgba(255,255,255,.07)','#ffffff','مراقبة: '+sm.watch.k);
 const ln=(p,i0,col,lab)=>{if(p<lo||p>hi)return;x.strokeStyle=col;x.setLineDash([2,3]);x.beginPath();x.moveTo(Math.max(0,X(i0)),Y(p));x.lineTo(R,Y(p));x.stroke();x.setLineDash([]);x.fillStyle=col;x.font='10px sans-serif';x.fillText(lab,R-30,Y(p)-2)};
 z.H.forEach(s=>ln(s.p,s.i,'#ff9800','BSL'));z.L.forEach(s=>ln(s.p,s.i,'#ff9800','SSL'));
+if(z.sweep&&z.sweep.j>=off){const sx=X(z.sweep.j),sy=Y(z.sweep.wick),u=z.sweep.dir>0?1:-1;x.fillStyle='#ff9800';x.beginPath();x.arc(sx,sy+6*u,4,0,6.3);x.fill();x.font='bold 10px sans-serif';x.fillText('Sweep',sx-14,sy+(u>0?20:-12))}
 z.ev.forEach(e=>{if(e.li<off||e.lvl<lo||e.lvl>hi)return;const c=e.dir>0?'#26a69a':'#ef5350';x.strokeStyle=c;x.beginPath();x.moveTo(X(e.li),Y(e.lvl));x.lineTo(X(e.t),Y(e.lvl));x.stroke();x.fillStyle=c;x.font='bold 10px sans-serif';x.fillText(e.type,(X(e.li)+X(e.t))/2-10,Y(e.lvl)+(e.dir>0?-3:11))})}
 v.forEach((k,i)=>{const cx=i*cw+cw/2,up=k.c>=k.o;x.strokeStyle=x.fillStyle=up?'#26a69a':'#ef5350';
 x.beginPath();x.moveTo(cx,Y(k.h));x.lineTo(cx,Y(k.l));x.stroke();x.fillRect(cx-cw*.35,Math.min(Y(k.o),Y(k.c)),cw*.7,Math.max(1,Math.abs(Y(k.o)-Y(k.c))))});
@@ -310,7 +323,7 @@ function tick1s(){const n=new Date(),sec=TFS[S.tf],rem=Math.ceil(sec-(n.getTime(
 $('timer').textContent=String(Math.floor(rem/60)).padStart(2,'0')+':'+String(rem%60).padStart(2,'0');$('clock').textContent=libya(n)}
 
 document.querySelectorAll('.tf button').forEach(b=>b.onclick=()=>{S.tf=b.dataset.tf;save();prevSig=null;load()});
-$('refresh').onclick=load;$('mode').value=S.mode;$('mode').onchange=e=>{S.mode=e.target.value;save();bt=candles.length?backtest(candles,S.mode):null;compute();render()};
+$('refresh').onclick=load;$('minwr').value=S.minwr;$('minwr').onchange=e=>{S.minwr=e.target.value;save();compute();render()};$('mode').value=S.mode;$('mode').onchange=e=>{S.mode=e.target.value;save();bt=candles.length?backtest(candles,S.mode):null;compute();render()};
 $('cap').value=S.cap;$('risk').value=S.risk;$('riskV').textContent=S.risk;$('cs').value=S.cs;$('notify').checked=S.notify;
 $('cap').oninput=e=>{S.cap=e.target.value;save();calc(res&&res.trade)};
 $('risk').oninput=e=>{S.risk=e.target.value;$('riskV').textContent=S.risk;save();calc(res&&res.trade)};
