@@ -54,15 +54,16 @@ let sig='WAIT',why=[];
 const need=d=>((d>0?(dn||htf==='down'):(up||htf==='up'))?4:3);
 if(b>=need(1)&&b-s>=2&&body>0&&ba>=0.15)sig='BUY';else if(s>=need(-1)&&s-b>=2&&body<0&&ba>=0.15)sig='SELL';
 let block=null;
-if(sig==='BUY'){if(price-E20>2*A)block='السعر مبتعد عن EMA20 (مطاردة)';else if(R>75)block='RSI تشبع شرائي';else if(lv.res!=null&&lv.res-price<A)block='مقاومة قريبة جداً'}
-if(sig==='SELL'){if(E20-price>2*A)block='السعر مبتعد عن EMA20 (مطاردة)';else if(R<25)block='RSI تشبع بيعي';else if(lv.sup!=null&&price-lv.sup<A)block='دعم قريب جداً'}
+if(sig==='BUY'){if(price-E20>2*A)block='السعر مبتعد عن EMA20 (مطاردة)';else if(R>75)block='RSI تشبع شرائي';else if(lv.res!=null&&lv.res-price<0.4*A)block='مقاومة ملاصقة للدخول'}
+if(sig==='SELL'){if(E20-price>2*A)block='السعر مبتعد عن EMA20 (مطاردة)';else if(R<25)block='RSI تشبع بيعي';else if(lv.sup!=null&&price-lv.sup<0.4*A)block='دعم ملاصق للدخول'}
 if(block){sig='WAIT';why=[block]}
 let trade=null,setup='توافق: شراء '+b+' / بيع '+s+' من '+N;
 if(sig!=='WAIT'){const B=sig==='BUY',d=B?1:-1;
 const sw=B?Math.min(...cs.slice(-6).map(x=>x.l)):Math.max(...cs.slice(-6).map(x=>x.h));
 const risk=Math.min(Math.max(Math.abs(price-sw)+0.2*A,A),2*A);
 trade={entry:price,sl:price-d*risk,tp1:price+d*1.5*risk,tp2:price+d*2.5*risk,risk,rr1:1.5,rr2:2.5};
-why=V.filter(x=>B?x.v>0:x.v<0).map(x=>x.n);why.push('SL حسب آخر قاع/قمة، الأهداف 1.5R و2.5R')}
+why=V.filter(x=>B?x.v>0:x.v<0).map(x=>x.n);const lvl=B?lv.res:lv.sup;if(lvl!=null&&Math.abs(lvl-price)<1.5*risk)why.push('تنبيه: '+(B?'مقاومة':'دعم')+' عند '+lvl.toFixed(2)+' قد يعيق الوصول إلى TP1');
+why.push('SL حسب آخر قاع/قمة، الأهداف 1.5R و2.5R')}
 else if(!why.length)why=['لا يوجد توافق كافٍ بين الاستراتيجيات: الأفضل الانتظار'];
 return{sig,setup,why,trade,conf:Math.max(b,s)/N,ind,votes:V}}
 function analyze(cs,price,tfSec,now,open,htf){
