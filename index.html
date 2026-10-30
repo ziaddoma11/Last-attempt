@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b0b0b">
+<title>GOLD AI TRADER PRO – OWM EDITION</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <img src="icon.svg" width="38" height="38" alt="">
+  <div><h1>GOLD AI TRADER PRO</h1><small>OWM EDITION · XAUUSD</small></div>
+  <button id="refresh" title="تحديث">⟳</button>
+</header>
+<main>
+  <section class="card" id="priceCard">
+    <div class="row"><span id="market" class="pill">…</span><span id="net" class="pill">…</span></div>
+    <div id="price" class="price">--</div>
+    <div class="row sm"><span>التغير اليومي: <b id="chg">--</b></span><span>السبريد: <b id="spread">--</b></span></div>
+    <div class="row sm"><span>آخر تحديث: <b id="upd">--</b></span><span>الشمعة: <b id="timer">--:--</b></span></div>
+    <div class="row sm"><span>توقيت ليبيا: <b id="clock">--</b></span></div>
+    <div id="err" class="err" hidden></div>
+  </section>
+
+  <div class="tf"><button data-tf="5m">5 دقائق</button><button data-tf="15m">15 دقيقة</button></div>
+
+  <section class="card"><canvas id="chart" height="300"></canvas></section>
+
+  <section class="card" id="sigCard">
+    <div class="sig" id="sig">WAIT</div>
+    <div id="sigAr" class="center">انتظار</div>
+    <div class="center sm">الحصيلة: <b id="score">--</b> <small>(ليست احتمال نجاح)</small></div>
+    <div class="center sm" id="bt"></div>
+    <ul id="reasons"></ul>
+    <div class="grid" id="trade">
+      <div>Entry<b id="entry">--</b></div><div>Stop Loss<b id="sl">--</b></div>
+      <div>TP1<b id="tp1">--</b></div><div>TP2<b id="tp2">--</b></div>
+      <div>R/R TP1<b id="rr1">--</b></div><div>R/R TP2<b id="rr2">--</b></div>
+    </div>
+  </section>
+
+  <section class="card"><h2>تصويت الاستراتيجيات</h2><div id="votes"></div></section>
+  <section class="card"><h2>المؤشرات</h2>
+    <div class="grid" id="ind"></div>
+  </section>
+
+  <section class="card"><h2>إدارة رأس المال</h2>
+    <label>رأس المال ($)<input id="cap" type="number" min="1" step="1"></label>
+    <label>المخاطرة: <b id="riskV"></b>%<input id="risk" type="range" min="1" max="5" step="0.5"></label>
+    <label>حجم العقد (أونصة لكل 1 لوت) – اختياري، من مواصفات وسيطك<input id="cs" type="number" min="0" step="any" placeholder="مثال: 100"></label>
+    <div class="grid" id="calc"></div>
+  </section>
+
+  <section class="card"><h2>سجل الإشارات (تجربة حقيقية)</h2><div class="sm" id="logStat"></div><div id="log"></div><button id="clearLog" class="tf" style="margin-top:8px;padding:8px;border-radius:8px;border:1px solid #333;background:#101010;color:#999">مسح السجل</button></section>
+  <section class="card"><h2>جلسات التداول (توقيت ليبيا)</h2><div id="sessions"></div></section>
+  <label class="card chk"><input type="checkbox" id="notify"> تفعيل التنبيه عند ظهور إشارة جديدة</label>
+</main>
+<footer>
+  أداة تحليلية فقط، وليست نصيحة مالية ولا تنفذ صفقات. التداول ينطوي على مخاطر عالية.<br>
+  مصدر البيانات: biquote.io (تغذية MT5) وقد يختلف سعره عن سعر OW Markets.
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
