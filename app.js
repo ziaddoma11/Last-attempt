@@ -190,9 +190,9 @@ if(typeof module!=='undefined')module.exports={ema,rsi,atr,levels,analyze,decide
 /* ---------- الواجهة ---------- */
 if(typeof document!=='undefined'){
 const $=id=>document.getElementById(id);
-const S=Object.assign({tf:'5m',mode:'smc',minwr:70,cap:30,risk:2,cs:'',notify:false},JSON.parse((()=>{try{return localStorage.getItem('gatp')||'{}'}catch(e){return'{}'}})()));
+const S=Object.assign({tf:'5m',mode:'smc',minwr:70,cs:'100',lay:{fvg:1,ob:1,liq:1,bos:1,fib:0,ema:1},cap:30,risk:2,cs:'',notify:false},JSON.parse((()=>{try{return localStorage.getItem('gatp')||'{}'}catch(e){return'{}'}})()));
 const save=()=>{try{localStorage.setItem('gatp',JSON.stringify(S))}catch(e){}};
-let candles=[],twinC=null,htf=null,bt=null,tick=null,res=null,prevSig=null,lastOk=null,netErr=null;
+let lastT=null,candles=[],twinC=null,htf=null,bt=null,tick=null,res=null,prevSig=null,lastOk=null,netErr=null;
 const f=(v,d=2)=>Number.isFinite(v)?v.toFixed(d):'--';
 const libya=d=>d.toLocaleTimeString('en-GB',{timeZone:'Africa/Tripoli',hour:'2-digit',minute:'2-digit',second:'2-digit'});
 
@@ -266,7 +266,7 @@ $('upd').textContent=libya(new Date(lastOk))}else{$('price').textContent='--';$(
 let r=res||{signal:'WAIT',reasons:[netErr||'لا توجد بيانات'],score:null,trade:null,ind:null};const plan=LOG.find(e=>!e.r);if(plan)r=planView(plan,r);
 $('sig').textContent=r.signal;$('sig').className='sig '+r.signal;
 $('sigAr').textContent={BUY:'شراء',SELL:'بيع',WAIT:'انتظار'}[r.signal];
-$('score').textContent=r.setup||'--';$('analyst').textContent=narrate(r,plan);
+$('score').textContent=r.setup||'--';$('verdict').textContent=verdict(r,plan);$('analyst').textContent=narrate(r,plan);
 $('votes').innerHTML='';(r.votes||[]).forEach(v=>{const d=document.createElement('div');d.className='ses';d.textContent=v.n;const x=document.createElement('span');x.textContent=v.v>0?'▲ شراء':v.v<0?'▼ بيع':'— محايد';x.style.color=v.v>0?'#26a69a':v.v<0?'#ef5350':'#777';d.appendChild(x);$('votes').appendChild(d)});
 $('bt').textContent=bt?(bt.n?'اختبار رجعي على آخر '+candles.length+' شمعة: '+bt.n+' صفقة، بلغت TP1 قبل الوقف في '+bt.w+' ('+Math.round(bt.w/bt.n*100)+'%). عينة صغيرة، لا تضمن المستقبل. نقطة التعادل لهذا R/R حوالي 40%.':'الاختبار الرجعي: لم تظهر صفقات في البيانات المتاحة.'):'';
 $('reasons').innerHTML='';r.reasons.forEach(t=>{const li=document.createElement('li');li.textContent=t;$('reasons').appendChild(li)});
@@ -276,45 +276,74 @@ const i=r.ind;$('ind').innerHTML='';
 if(i)[['EMA 20',f(i.ema20)],['EMA 50',f(i.ema50)],['RSI 14',f(i.rsi,1)],['ATR 14',f(i.atr)],['الاتجاه',i.trend],['اتجاه 15د',{up:'صاعد',down:'هابط',flat:'عرضي'}[i.htf]||'—'],['الزخم',i.mom],
 ['الدعم',i.sup!=null?f(i.sup):'—'],['المقاومة',i.res!=null?f(i.res):'—'],['اتجاه الشمعة',i.body>0?'صاعدة':'هابطة'],['حجم الشمعة',f(i.bodyAtr,2)+' ATR']].concat(i.smc?[['هيكل SMC',i.smc.struct],['آخر كسر',i.smc.last],['سحب السيولة',i.smc.sweep],['Order Block',i.smc.ob],['FVG/iFVG',i.smc.fvg],['SMT (XAGUSD)',i.smc.smt]]:[])
 .forEach(([k,v])=>{const d=document.createElement('div');d.textContent=k;const b=document.createElement('b');b.textContent=v;d.appendChild(b);$('ind').appendChild(d)});
-calc(t);draw(t)}
+lastT=t;calc(t);redraw()}
 
 function calc(t){const cap=+S.cap,rk=+S.risk,rusd=cap*rk/100,rows=[['مبلغ المخاطرة','$'+f(rusd)],['أقصى خسارة','-$'+f(rusd)],
 ['ربح TP1',t?'+$'+f(rusd*t.rr1):'--'],['ربح TP2',t?'+$'+f(rusd*t.rr2):'--']];
 const cs=+S.cs;let lot='يلزم إدخال حجم العقد';
-if(t&&cs>0)lot=f(rusd/(Math.abs(t.entry-t.sl)*cs),3)+' لوت';else if(!t&&cs>0)lot='بانتظار إشارة';
+if(t&&cs>0){const dist=Math.abs(t.entry-t.sl),raw=rusd/(dist*cs);lot=raw>=0.01?f(raw,2)+' لوت':'0.01 لوت (أدنى حجم) · الخسارة الفعلية عند الوقف $'+f(0.01*dist*cs)}else if(!t&&cs>0)lot='بانتظار إشارة';
 rows.push(['حجم اللوت',lot]);$('calc').innerHTML='';
 rows.forEach(([k,v])=>{const d=document.createElement('div');d.textContent=k;const b=document.createElement('b');b.textContent=v;d.appendChild(b);$('calc').appendChild(d)})}
 
-function draw(t){const cv=$('chart'),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=300;cv.width=W*dpr;cv.height=H*dpr;
-const x=cv.getContext('2d');x.scale(dpr,dpr);x.clearRect(0,0,W,H);
+function verdict(r,plan){const m=res&&res.ind&&res.ind.smc;
+if(netErr)return 'تعذر جلب البيانات حالياً';
+if(!marketOpen(new Date()))return 'السوق مغلق الآن. يعمل التحليل تلقائياً عند فتحه.';
+if(plan)return (plan.sig==='BUY'?'شراء':'بيع')+' · Entry '+plan.entry.toFixed(2)+' · SL '+plan.sl.toFixed(2)+' · TP1 '+plan.tp1.toFixed(2);
+if(m&&m.watch)return 'انتظار: راقب '+m.watch.k+' عند '+m.watch.lo.toFixed(1)+'–'+m.watch.hi.toFixed(1)+' لإشارة '+(m.watch.dir>0?'شراء':'بيع');
+return 'لا توجد فرصة واضحة الآن، الأفضل الانتظار.'}
+const view={n:70,shift:0};let fsOpen=false;
+function redraw(){draw(lastT);if(fsOpen)draw(lastT,$('chartFS'))}
+function draw(t,cv){cv=cv||$('chart');const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight||320;if(!W)return;
+cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);
 if(!candles.length||netErr){x.fillStyle='#777';x.font='14px sans-serif';x.textAlign='center';x.fillText('لا توجد بيانات للعرض',W/2,H/2);return}
-const N=Math.min(70,candles.length),v=candles.slice(-N),c=candles.map(k=>k.c),e20=ema(c,20).slice(-N),e50=ema(c,50).slice(-N);
+const len=candles.length,N=Math.max(20,Math.min(view.n,len));view.n=N;view.shift=Math.max(0,Math.min(view.shift,len-N));
+const end=len-view.shift,off=end-N,v=candles.slice(off,end),c=candles.map(k=>k.c),e20=ema(c,20).slice(off,end),e50=ema(c,50).slice(off,end);
 let hi=Math.max(...v.map(k=>k.h)),lo=Math.min(...v.map(k=>k.l));
 if(t)[t.sl,t.tp1,t.tp2,t.entry].forEach(p=>{hi=Math.max(hi,p);lo=Math.min(lo,p)});
-const pad=(hi-lo)*.05||1;hi+=pad;lo-=pad;const pw=52,cw=(W-pw)/N,Y=p=>H-(p-lo)/(hi-lo)*H;
-x.font='11px sans-serif';x.textAlign='left';x.fillStyle='#777';x.strokeStyle='#222';
-for(let g=0;g<5;g++){const p=lo+(hi-lo)*g/4;x.beginPath();x.moveTo(0,Y(p));x.lineTo(W-pw,Y(p));x.stroke();x.fillText(p.toFixed(1),W-pw+4,Y(p)-2)}
-const sm=res&&res.ind&&res.ind.smc&&S.mode!=='classic'?res.ind.smc:null;
-if(sm&&sm.z){const z=sm.z,off=candles.length-N,X=i=>(i-off)*cw+cw/2,R=W-pw;
-const box=(lo,hi,i0,fill,stroke,label)=>{const y1=Math.max(0,Y(hi)),y2=Math.min(H,Y(lo));if(y2<=y1)return;const x0=Math.max(0,X(i0)-cw/2);
+const pad=(hi-lo)*.06||1;hi+=pad;lo-=pad;const pw=56,R=W-pw,H2=H-18,cw=R/N,Y=p=>H2-(p-lo)/(hi-lo)*H2,X=i=>(i-off)*cw+cw/2,L=S.lay;
+x.font='10px sans-serif';x.textAlign='left';x.fillStyle='#777';x.strokeStyle='#222';x.lineWidth=1;
+for(let g=0;g<=5;g++){const p=lo+(hi-lo)*g/5;x.beginPath();x.moveTo(0,Y(p));x.lineTo(R,Y(p));x.stroke();x.fillText(p.toFixed(1),R+4,Y(p)+3)}
+for(let g=0;g<4;g++){const i=Math.floor(g*(N-1)/3),k=v[i];if(k)x.fillText(lt(k.t),Math.min(R-30,Math.max(0,X(off+i)-14)),H-4)}
+const sm=res&&res.ind&&res.ind.smc&&S.mode!=='classic'?res.ind.smc:null,px=tick?tick.price:v[v.length-1].c;
+if(sm&&sm.z){const z=sm.z;
+const box=(a,b,i0,fill,stroke,label)=>{const y1=Math.max(0,Y(b)),y2=Math.min(H2,Y(a));if(y2<=y1)return;const x0=Math.max(0,X(i0)-cw/2);if(x0>=R)return;
 x.fillStyle=fill;x.fillRect(x0,y1,R-x0,y2-y1);if(stroke){x.strokeStyle=stroke;x.setLineDash([3,3]);x.strokeRect(x0,y1,R-x0,y2-y1);x.setLineDash([])}
-x.fillStyle=stroke||'#ccc';x.font='10px sans-serif';x.textAlign='right';x.fillText(label,R-3,y1+10);x.textAlign='left'};
-if(z.leg)box(Math.min(z.leg.z1,z.leg.z2),Math.max(z.leg.z1,z.leg.z2),off,'rgba(212,175,55,.10)','#d4af37','فيبو 0.5–0.786');
-z.fv.forEach(f=>box(f.lo,f.hi,f.i-2,f.dir>0?'rgba(38,166,154,.18)':'rgba(239,83,80,.18)',f.inv?'#b388ff':null,f.inv?'iFVG':'FVG'));
-if(z.ob)box(z.ob.lo,z.ob.hi,z.ob.q,'rgba(79,195,247,.20)','#4fc3f7','OB');
-if(sm.watch)box(sm.watch.lo,sm.watch.hi,off,'rgba(255,255,255,.07)','#ffffff','مراقبة: '+sm.watch.k);
-const ln=(p,i0,col,lab)=>{if(p<lo||p>hi)return;x.strokeStyle=col;x.setLineDash([2,3]);x.beginPath();x.moveTo(Math.max(0,X(i0)),Y(p));x.lineTo(R,Y(p));x.stroke();x.setLineDash([]);x.fillStyle=col;x.font='10px sans-serif';x.fillText(lab,R-30,Y(p)-2)};
-z.H.forEach(s=>ln(s.p,s.i,'#ff9800','BSL'));z.L.forEach(s=>ln(s.p,s.i,'#ff9800','SSL'));
-if(z.sweep&&z.sweep.j>=off){const sx=X(z.sweep.j),sy=Y(z.sweep.wick),u=z.sweep.dir>0?1:-1;x.fillStyle='#ff9800';x.beginPath();x.arc(sx,sy+6*u,4,0,6.3);x.fill();x.font='bold 10px sans-serif';x.fillText('Sweep',sx-14,sy+(u>0?20:-12))}
-z.ev.forEach(e=>{if(e.li<off||e.lvl<lo||e.lvl>hi)return;const c=e.dir>0?'#26a69a':'#ef5350';x.strokeStyle=c;x.beginPath();x.moveTo(X(e.li),Y(e.lvl));x.lineTo(X(e.t),Y(e.lvl));x.stroke();x.fillStyle=c;x.font='bold 10px sans-serif';x.fillText(e.type,(X(e.li)+X(e.t))/2-10,Y(e.lvl)+(e.dir>0?-3:11))})}
+x.fillStyle=stroke||'#bbb';x.font='9px sans-serif';x.textAlign='left';if(y2-y1>11)x.fillText(label,x0+3,y1+10)};
+if(L.fib&&z.leg)box(Math.min(z.leg.z1,z.leg.z2),Math.max(z.leg.z1,z.leg.z2),off,'rgba(212,175,55,.10)','#d4af37','فيبو 0.5–0.786');
+if(L.fvg)z.fv.forEach(f=>box(f.lo,f.hi,f.i-2,f.dir>0?'rgba(38,166,154,.18)':'rgba(239,83,80,.18)',f.inv?'#b388ff':null,f.inv?'iFVG':'FVG'));
+if(L.ob&&z.ob)box(z.ob.lo,z.ob.hi,z.ob.q,'rgba(79,195,247,.20)','#4fc3f7','OB');
+if(sm.watch)box(sm.watch.lo,sm.watch.hi,off,'rgba(255,255,255,.07)','#ffffff','مراقبة '+sm.watch.k);
+if(L.liq){const a=z.H.filter(s=>s.p>px).sort((p,q)=>p.p-q.p)[0],b=z.L.filter(s=>s.p<px).sort((p,q)=>q.p-p.p)[0];
+[[a,'BSL'],[b,'SSL']].forEach(([s,lab])=>{if(!s||s.p<lo||s.p>hi)return;x.strokeStyle='#ff9800';x.setLineDash([2,3]);x.beginPath();x.moveTo(Math.max(0,X(s.i)),Y(s.p));x.lineTo(R,Y(s.p));x.stroke();x.setLineDash([]);
+x.fillStyle='#ff9800';x.font='10px sans-serif';x.textAlign='right';x.fillText(lab+' '+s.p.toFixed(1),R-3,Y(s.p)-3);x.textAlign='left'});
+if(z.sweep&&z.sweep.j>=off&&z.sweep.j<end){const sx=X(z.sweep.j),sy=Y(z.sweep.wick),u=z.sweep.dir>0?1:-1;x.fillStyle='#ff9800';x.beginPath();x.arc(sx,sy+6*u,4,0,6.3);x.fill();x.font='bold 10px sans-serif';x.fillText('Sweep',sx-14,sy+(u>0?20:-12))}}
+if(L.bos)z.ev.slice(-2).forEach(e=>{if(e.li<off||e.t>=end||e.lvl<lo||e.lvl>hi)return;const col=e.dir>0?'#26a69a':'#ef5350';x.strokeStyle=col;x.beginPath();x.moveTo(X(e.li),Y(e.lvl));x.lineTo(X(e.t),Y(e.lvl));x.stroke();
+x.fillStyle=col;x.font='bold 10px sans-serif';x.fillText(e.type,(X(e.li)+X(e.t))/2-10,Y(e.lvl)+(e.dir>0?-3:11))})}
 v.forEach((k,i)=>{const cx=i*cw+cw/2,up=k.c>=k.o;x.strokeStyle=x.fillStyle=up?'#26a69a':'#ef5350';
 x.beginPath();x.moveTo(cx,Y(k.h));x.lineTo(cx,Y(k.l));x.stroke();x.fillRect(cx-cw*.35,Math.min(Y(k.o),Y(k.c)),cw*.7,Math.max(1,Math.abs(Y(k.o)-Y(k.c))))});
-[[e20,'#d4af37'],[e50,'#4fc3f7']].forEach(([e,col])=>{x.strokeStyle=col;x.lineWidth=1.5;x.beginPath();let s=false;
-e.forEach((p,i)=>{if(p==null)return;const px=i*cw+cw/2;s?x.lineTo(px,Y(p)):(x.moveTo(px,Y(p)),s=true)});x.stroke();x.lineWidth=1});
+if(L.ema)[[e20,'#d4af37'],[e50,'#4fc3f7']].forEach(([e,col])=>{x.strokeStyle=col;x.lineWidth=1.5;x.beginPath();let s=false;
+e.forEach((p,i)=>{if(p==null)return;const q=i*cw+cw/2;s?x.lineTo(q,Y(p)):(x.moveTo(q,Y(p)),s=true)});x.stroke();x.lineWidth=1});
 if(t)[['Entry',t.entry,'#ffffff'],['SL',t.sl,'#ef5350'],['TP1',t.tp1,'#26a69a'],['TP2',t.tp2,'#66bb6a']].forEach(([n,p,col])=>{
-x.strokeStyle=col;x.setLineDash([5,4]);x.beginPath();x.moveTo(0,Y(p));x.lineTo(W-pw,Y(p));x.stroke();x.setLineDash([]);x.fillStyle=col;x.fillText(n,4,Y(p)-3)});
-x.fillStyle='#d4af37';x.fillText('EMA20',4,12);x.fillStyle='#4fc3f7';x.fillText('EMA50',50,12)}
-
+x.strokeStyle=col;x.setLineDash([5,4]);x.beginPath();x.moveTo(0,Y(p));x.lineTo(R,Y(p));x.stroke();x.setLineDash([]);x.fillStyle=col;x.font='10px sans-serif';x.textAlign='left';x.fillText(n+' '+p.toFixed(2),4,Y(p)-3)});
+const py=Y(px);if(py>0&&py<H2){x.fillStyle='#d4af37';x.fillRect(R,py-8,pw,16);x.fillStyle='#000';x.font='bold 10px sans-serif';x.fillText(px.toFixed(2),R+3,py+4)}}
+const LAYDEF=[['fvg','FVG'],['ob','OB'],['liq','سيولة'],['bos','BOS/CHoCH'],['fib','فيبو'],['ema','EMA']];
+function buildLayers(){['layers','layersFS'].forEach(id=>{const c=$(id);c.innerHTML='';LAYDEF.forEach(([k,n])=>{const b=document.createElement('button');b.textContent=n;b.className='chip'+(S.lay[k]?' on':'');
+b.onclick=()=>{S.lay[k]=S.lay[k]?0:1;save();buildLayers();redraw()};c.appendChild(b)})})}
+function attach(cv){const P=new Map();let d0=1,n0=70,x0=0,s0=0;cv.style.touchAction='none';
+cv.addEventListener('pointerdown',e=>{try{cv.setPointerCapture(e.pointerId)}catch(_){}P.set(e.pointerId,e.clientX);
+if(P.size===1){x0=e.clientX;s0=view.shift}if(P.size===2){const a=[...P.values()];d0=Math.abs(a[0]-a[1])||1;n0=view.n}});
+cv.addEventListener('pointermove',e=>{if(!P.has(e.pointerId))return;P.set(e.pointerId,e.clientX);
+if(P.size===2){const a=[...P.values()],d=Math.abs(a[0]-a[1])||1;view.n=Math.max(20,Math.min(160,Math.round(n0*d0/d)))}
+else{const cw=(cv.clientWidth-56)/view.n;view.shift=Math.max(0,Math.min(candles.length-20,s0+Math.round((e.clientX-x0)/cw)))}redraw()});
+const up=e=>{P.delete(e.pointerId);if(P.size===1){x0=[...P.values()][0];s0=view.shift}};
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+cv.addEventListener('wheel',e=>{e.preventDefault();view.n=Math.max(20,Math.min(160,view.n+(e.deltaY>0?6:-6)));redraw()},{passive:false})}
+async function openFS(){fsOpen=true;$('fs').hidden=false;document.body.style.overflow='hidden';
+try{await document.documentElement.requestFullscreen()}catch(e){}try{await screen.orientation.lock('landscape')}catch(e){}setTimeout(redraw,200)}
+function closeFS(){fsOpen=false;$('fs').hidden=true;document.body.style.overflow='';try{screen.orientation.unlock()}catch(e){}
+try{if(document.fullscreenElement)document.exitFullscreen()}catch(e){}setTimeout(redraw,100)}
+function initChartUI(){attach($('chart'));attach($('chartFS'));buildLayers();$('fsOpen').onclick=openFS;$('fsClose').onclick=closeFS;
+document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>{const a=b.dataset.z;if(a==='in')view.n=Math.max(20,view.n-10);else if(a==='out')view.n=Math.min(160,view.n+10);else{view.n=70;view.shift=0}redraw()})}
 function sessions(){const h=new Date().getUTCHours()+new Date().getUTCMinutes()/60,L=n=>String((n+2)%24).padStart(2,'0')+':00';
 const S2=[['آسيا',0,9],['أوروبا',7,16],['أمريكا',13,22]];$('sessions').innerHTML='';
 S2.forEach(([n,a,b])=>{const on=marketOpen(new Date())&&h>=a&&h<b,d=document.createElement('div');d.className='ses'+(on?' on':'');
@@ -329,5 +358,5 @@ $('cap').oninput=e=>{S.cap=e.target.value;save();calc(res&&res.trade)};
 $('risk').oninput=e=>{S.risk=e.target.value;$('riskV').textContent=S.risk;save();calc(res&&res.trade)};
 $('cs').oninput=e=>{S.cs=e.target.value;save();calc(res&&res.trade)};
 $('notify').onchange=e=>{S.notify=e.target.checked;save();if(S.notify&&window.Notification&&Notification.permission==='default')Notification.requestPermission()};
-window.addEventListener('online',load);window.addEventListener('offline',load);window.addEventListener('resize',()=>draw(res&&res.trade));
-$('clearLog').onclick=()=>{if(confirm('مسح السجل؟')){LOG=[];saveLog();renderLog()}};renderLog();sessions();tick1s();setInterval(tick1s,1000);setInterval(sessions,60000);setInterval(load,15000);setInterval(fast,1000);load()}
+window.addEventListener('online',load);window.addEventListener('offline',load);window.addEventListener('resize',()=>setTimeout(redraw,100));window.addEventListener('orientationchange',()=>setTimeout(redraw,300));
+initChartUI();$('clearLog').onclick=()=>{if(confirm('مسح السجل؟')){LOG=[];saveLog();renderLog()}};renderLog();sessions();tick1s();setInterval(tick1s,1000);setInterval(sessions,60000);setInterval(load,15000);setInterval(fast,1000);load()}

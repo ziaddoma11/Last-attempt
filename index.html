@@ -10,7 +10,7 @@
 </head>
 <body>
 <header>
-  <img src="icon.svg" width="38" height="38" alt="">
+  <img src="icon.svg" width="36" height="36" alt="">
   <div><h1>GOLD AI TRADER PRO</h1><small>OWM EDITION · XAUUSD</small></div>
   <button id="refresh" title="تحديث">⟳</button>
 </header>
@@ -18,56 +18,63 @@
   <section class="card" id="priceCard">
     <div class="row"><span id="market" class="pill">…</span><span id="net" class="pill">…</span></div>
     <div id="price" class="price">--</div>
-    <div class="row sm"><span>التغير اليومي: <b id="chg">--</b></span><span>السبريد: <b id="spread">--</b></span></div>
-    <div class="row sm"><span>آخر تحديث: <b id="upd">--</b></span><span>الشمعة: <b id="timer">--:--</b></span></div>
-    <div class="row sm"><span>توقيت ليبيا: <b id="clock">--</b></span></div>
+    <div class="chips">
+      <span>التغير <b id="chg">--</b></span><span>السبريد <b id="spread">--</b></span>
+      <span>الشمعة <b id="timer">--:--</b></span><span>ليبيا <b id="clock">--</b></span><span>تحديث <b id="upd">--</b></span>
+    </div>
     <div id="err" class="err" hidden></div>
   </section>
 
-  <div class="tf"><button data-tf="5m">5 دقائق</button><button data-tf="15m">15 دقيقة</button></div>
-
-  <label class="card">الاستراتيجية:
-    <select id="mode" style="width:100%;padding:10px;margin-top:4px;background:#0e0e0e;color:#eee;border:1px solid #333;border-radius:8px;font-size:15px"><option value="smc">SMC المؤسسي (BOS/CHoCH, OB, FVG, سيولة)</option><option value="both">SMC ثم الكلاسيكي</option><option value="classic">كلاسيكي (10 استراتيجيات)</option></select></label>
-
-  <label class="card">حد نسبة النجاح التاريخية (فلتر الأداء):
-    <select id="minwr" style="width:100%;padding:10px;margin-top:4px;background:#0e0e0e;color:#eee;border:1px solid #333;border-radius:8px;font-size:15px"><option value="0">بدون فلتر</option><option value="60">60%</option><option value="70">70%</option><option value="80">80%</option></select></label>
-
-  <section class="card"><canvas id="chart" height="300"></canvas></section>
-
   <section class="card" id="sigCard">
+    <div id="verdict" class="verdict">…</div>
     <div class="sig" id="sig">WAIT</div>
-    <div id="sigAr" class="center">انتظار</div>
+    <div id="sigAr" class="center sm">انتظار</div>
     <div class="center sm">الحصيلة: <b id="score">--</b> <small>(ليست احتمال نجاح)</small></div>
-    <div class="center sm" id="bt"></div>
-    <ul id="reasons"></ul>
     <div class="grid" id="trade">
       <div>Entry<b id="entry">--</b></div><div>Stop Loss<b id="sl">--</b></div>
       <div>TP1<b id="tp1">--</b></div><div>TP2<b id="tp2">--</b></div>
       <div>R/R TP1<b id="rr1">--</b></div><div>R/R TP2<b id="rr2">--</b></div>
     </div>
+    <details open><summary>أسباب الإشارة</summary><ul id="reasons"></ul><div class="center sm" id="bt"></div></details>
   </section>
 
-  <section class="card"><h2>تحليل المحلل</h2><div id="analyst" class="sm" style="white-space:pre-line;line-height:1.9;color:#ddd;font-size:14px"></div></section>
-  <section class="card"><h2>تصويت الاستراتيجيات</h2><div id="votes"></div></section>
-  <section class="card"><h2>المؤشرات</h2>
-    <div class="grid" id="ind"></div>
+  <section class="card chartcard">
+    <div class="tf"><button data-tf="5m">5 دقائق</button><button data-tf="15m">15 دقيقة</button></div>
+    <div class="tools"><button data-z="in">＋</button><button data-z="out">－</button><button data-z="reset">⟲</button><button id="fsOpen">⛶ ملء الشاشة</button></div>
+    <canvas id="chart"></canvas>
+    <div class="chips lay" id="layers"></div>
+    <div class="sm center">اسحب للتحريك · اقرص للتكبير · لف الهاتف أو افتح ملء الشاشة</div>
   </section>
 
-  <section class="card"><h2>إدارة رأس المال</h2>
+  <details class="card" open><summary>تحليل المحلل</summary><div id="analyst"></div></details>
+  <details class="card"><summary>تصويت الاستراتيجيات</summary><div id="votes"></div></details>
+  <details class="card"><summary>المؤشرات</summary><div class="grid" id="ind"></div></details>
+  <details class="card"><summary>إدارة رأس المال</summary>
     <label>رأس المال ($)<input id="cap" type="number" min="1" step="1"></label>
     <label>المخاطرة: <b id="riskV"></b>%<input id="risk" type="range" min="1" max="5" step="0.5"></label>
-    <label>حجم العقد (أونصة لكل 1 لوت) – اختياري، من مواصفات وسيطك<input id="cs" type="number" min="0" step="any" placeholder="مثال: 100"></label>
+    <label>حجم العقد (أونصة لكل 1 لوت) – اختياري<input id="cs" type="number" min="0" step="any" placeholder="مثال: 100"></label>
     <div class="grid" id="calc"></div>
-  </section>
-
-  <section class="card"><h2>سجل الإشارات (تجربة حقيقية)</h2><div class="sm" id="logStat"></div><div id="log"></div><button id="clearLog" class="tf" style="margin-top:8px;padding:8px;border-radius:8px;border:1px solid #333;background:#101010;color:#999">مسح السجل</button></section>
-  <section class="card"><h2>جلسات التداول (توقيت ليبيا)</h2><div id="sessions"></div></section>
-  <label class="card chk"><input type="checkbox" id="notify"> تفعيل التنبيه عند ظهور إشارة جديدة</label>
+  </details>
+  <details class="card"><summary>سجل الإشارات</summary><div class="sm" id="logStat"></div><div id="log"></div><button id="clearLog" class="btn">مسح السجل</button></details>
+  <details class="card"><summary>جلسات التداول (ليبيا)</summary><div id="sessions"></div></details>
+  <details class="card"><summary>الإعدادات</summary>
+    <label>الاستراتيجية
+      <select id="mode"><option value="smc">SMC المؤسسي</option><option value="both">SMC ثم الكلاسيكي</option><option value="classic">كلاسيكي (10 استراتيجيات)</option></select></label>
+    <label>حد نسبة النجاح التاريخية
+      <select id="minwr"><option value="0">بدون فلتر</option><option value="60">60%</option><option value="70">70%</option><option value="80">80%</option></select></label>
+    <label class="chk"><input type="checkbox" id="notify"> تنبيه عند ظهور إشارة جديدة</label>
+  </details>
 </main>
 <footer>
   أداة تحليلية فقط، وليست نصيحة مالية ولا تنفذ صفقات. التداول ينطوي على مخاطر عالية.<br>
-  مصدر البيانات: biquote.io (تغذية MT5) وقد يختلف سعره عن سعر OW Markets.
+  مصدر البيانات: biquote.io وقد يختلف سعره عن سعر OW Markets.
 </footer>
+
+<div id="fs" hidden>
+  <div class="fsbar"><button data-z="in">＋</button><button data-z="out">－</button><button data-z="reset">⟲</button>
+    <span class="chips lay" id="layersFS"></span><button id="fsClose">✕</button></div>
+  <canvas id="chartFS"></canvas>
+</div>
 <script src="app.js"></script>
 </body>
 </html>
