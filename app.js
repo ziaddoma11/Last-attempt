@@ -190,7 +190,7 @@ if(typeof module!=='undefined')module.exports={ema,rsi,atr,levels,analyze,decide
 /* ---------- الواجهة ---------- */
 if(typeof document!=='undefined'){
 const $=id=>document.getElementById(id);
-const S=Object.assign({tf:'5m',mode:'smc',minwr:70,cs:'100',lay:{fvg:1,ob:1,liq:1,bos:1,fib:0,ema:1},cap:30,risk:2,cs:'',notify:false},JSON.parse((()=>{try{return localStorage.getItem('gatp')||'{}'}catch(e){return'{}'}})()));
+const S=Object.assign({tf:'5m',mode:'smc',minwr:70,cs:'100',txt:1,lay:{fvg:1,ob:1,liq:1,bos:1,fib:0,ema:1},cap:30,risk:2,cs:'',notify:false},JSON.parse((()=>{try{return localStorage.getItem('gatp')||'{}'}catch(e){return'{}'}})()));
 const save=()=>{try{localStorage.setItem('gatp',JSON.stringify(S))}catch(e){}};
 let lastT=null,candles=[],twinC=null,htf=null,bt=null,tick=null,res=null,prevSig=null,lastOk=null,netErr=null;
 const f=(v,d=2)=>Number.isFinite(v)?v.toFixed(d):'--';
@@ -300,7 +300,7 @@ const len=candles.length,N=Math.max(20,Math.min(view.n,len));view.n=N;view.shift
 const end=len-view.shift,off=end-N,v=candles.slice(off,end),c=candles.map(k=>k.c),e20=ema(c,20).slice(off,end),e50=ema(c,50).slice(off,end);
 let hi=Math.max(...v.map(k=>k.h)),lo=Math.min(...v.map(k=>k.l));
 if(t)[t.sl,t.tp1,t.tp2,t.entry].forEach(p=>{hi=Math.max(hi,p);lo=Math.min(lo,p)});
-const pad=(hi-lo)*.06||1;hi+=pad;lo-=pad;const pw=56,R=W-pw,H2=H-18,cw=R/N,Y=p=>H2-(p-lo)/(hi-lo)*H2,X=i=>(i-off)*cw+cw/2,L=S.lay;
+const pad=(hi-lo)*.06||1;hi+=pad;lo-=pad;const pw=56,R=W-pw,H2=H-18,cw=R/N,Y=p=>H2-(p-lo)/(hi-lo)*H2,X=i=>(i-off)*cw+cw/2,L=S.lay,TX=S.txt!==0;
 x.font='10px sans-serif';x.textAlign='left';x.fillStyle='#777';x.strokeStyle='#222';x.lineWidth=1;
 for(let g=0;g<=5;g++){const p=lo+(hi-lo)*g/5;x.beginPath();x.moveTo(0,Y(p));x.lineTo(R,Y(p));x.stroke();x.fillText(p.toFixed(1),R+4,Y(p)+3)}
 for(let g=0;g<4;g++){const i=Math.floor(g*(N-1)/3),k=v[i];if(k)x.fillText(lt(k.t),Math.min(R-30,Math.max(0,X(off+i)-14)),H-4)}
@@ -308,27 +308,29 @@ const sm=res&&res.ind&&res.ind.smc&&S.mode!=='classic'?res.ind.smc:null,px=tick?
 if(sm&&sm.z){const z=sm.z;
 const box=(a,b,i0,fill,stroke,label)=>{const y1=Math.max(0,Y(b)),y2=Math.min(H2,Y(a));if(y2<=y1)return;const x0=Math.max(0,X(i0)-cw/2);if(x0>=R)return;
 x.fillStyle=fill;x.fillRect(x0,y1,R-x0,y2-y1);if(stroke){x.strokeStyle=stroke;x.setLineDash([3,3]);x.strokeRect(x0,y1,R-x0,y2-y1);x.setLineDash([])}
-x.fillStyle=stroke||'#bbb';x.font='9px sans-serif';x.textAlign='left';if(y2-y1>11)x.fillText(label,x0+3,y1+10)};
+x.fillStyle=stroke||'#bbb';x.font='9px sans-serif';x.textAlign='left';if(TX&&y2-y1>11)x.fillText(label,x0+3,y1+10)};
 if(L.fib&&z.leg)box(Math.min(z.leg.z1,z.leg.z2),Math.max(z.leg.z1,z.leg.z2),off,'rgba(212,175,55,.10)','#d4af37','فيبو 0.5–0.786');
 if(L.fvg)z.fv.forEach(f=>box(f.lo,f.hi,f.i-2,f.dir>0?'rgba(38,166,154,.18)':'rgba(239,83,80,.18)',f.inv?'#b388ff':null,f.inv?'iFVG':'FVG'));
 if(L.ob&&z.ob)box(z.ob.lo,z.ob.hi,z.ob.q,'rgba(79,195,247,.20)','#4fc3f7','OB');
 if(sm.watch)box(sm.watch.lo,sm.watch.hi,off,'rgba(255,255,255,.07)','#ffffff','مراقبة '+sm.watch.k);
 if(L.liq){const a=z.H.filter(s=>s.p>px).sort((p,q)=>p.p-q.p)[0],b=z.L.filter(s=>s.p<px).sort((p,q)=>q.p-p.p)[0];
 [[a,'BSL'],[b,'SSL']].forEach(([s,lab])=>{if(!s||s.p<lo||s.p>hi)return;x.strokeStyle='#ff9800';x.setLineDash([2,3]);x.beginPath();x.moveTo(Math.max(0,X(s.i)),Y(s.p));x.lineTo(R,Y(s.p));x.stroke();x.setLineDash([]);
-x.fillStyle='#ff9800';x.font='10px sans-serif';x.textAlign='right';x.fillText(lab+' '+s.p.toFixed(1),R-3,Y(s.p)-3);x.textAlign='left'});
-if(z.sweep&&z.sweep.j>=off&&z.sweep.j<end){const sx=X(z.sweep.j),sy=Y(z.sweep.wick),u=z.sweep.dir>0?1:-1;x.fillStyle='#ff9800';x.beginPath();x.arc(sx,sy+6*u,4,0,6.3);x.fill();x.font='bold 10px sans-serif';x.fillText('Sweep',sx-14,sy+(u>0?20:-12))}}
+if(TX){x.fillStyle='#ff9800';x.font='10px sans-serif';x.textAlign='right';x.fillText(lab+' '+s.p.toFixed(1),R-3,Y(s.p)-3);x.textAlign='left'}});
+if(z.sweep&&z.sweep.j>=off&&z.sweep.j<end){const sx=X(z.sweep.j),sy=Y(z.sweep.wick),u=z.sweep.dir>0?1:-1;x.fillStyle='#ff9800';x.beginPath();x.arc(sx,sy+6*u,4,0,6.3);x.fill();if(TX){x.font='bold 10px sans-serif';x.fillText('Sweep',sx-14,sy+(u>0?20:-12))}}}
 if(L.bos)z.ev.slice(-2).forEach(e=>{if(e.li<off||e.t>=end||e.lvl<lo||e.lvl>hi)return;const col=e.dir>0?'#26a69a':'#ef5350';x.strokeStyle=col;x.beginPath();x.moveTo(X(e.li),Y(e.lvl));x.lineTo(X(e.t),Y(e.lvl));x.stroke();
-x.fillStyle=col;x.font='bold 10px sans-serif';x.fillText(e.type,(X(e.li)+X(e.t))/2-10,Y(e.lvl)+(e.dir>0?-3:11))})}
+if(TX){x.fillStyle=col;x.font='bold 10px sans-serif';x.fillText(e.type,(X(e.li)+X(e.t))/2-10,Y(e.lvl)+(e.dir>0?-3:11))}})}
 v.forEach((k,i)=>{const cx=i*cw+cw/2,up=k.c>=k.o;x.strokeStyle=x.fillStyle=up?'#26a69a':'#ef5350';
 x.beginPath();x.moveTo(cx,Y(k.h));x.lineTo(cx,Y(k.l));x.stroke();x.fillRect(cx-cw*.35,Math.min(Y(k.o),Y(k.c)),cw*.7,Math.max(1,Math.abs(Y(k.o)-Y(k.c))))});
 if(L.ema)[[e20,'#d4af37'],[e50,'#4fc3f7']].forEach(([e,col])=>{x.strokeStyle=col;x.lineWidth=1.5;x.beginPath();let s=false;
 e.forEach((p,i)=>{if(p==null)return;const q=i*cw+cw/2;s?x.lineTo(q,Y(p)):(x.moveTo(q,Y(p)),s=true)});x.stroke();x.lineWidth=1});
 if(t)[['Entry',t.entry,'#ffffff'],['SL',t.sl,'#ef5350'],['TP1',t.tp1,'#26a69a'],['TP2',t.tp2,'#66bb6a']].forEach(([n,p,col])=>{
-x.strokeStyle=col;x.setLineDash([5,4]);x.beginPath();x.moveTo(0,Y(p));x.lineTo(R,Y(p));x.stroke();x.setLineDash([]);x.fillStyle=col;x.font='10px sans-serif';x.textAlign='left';x.fillText(n+' '+p.toFixed(2),4,Y(p)-3)});
+x.strokeStyle=col;x.setLineDash([5,4]);x.beginPath();x.moveTo(0,Y(p));x.lineTo(R,Y(p));x.stroke();x.setLineDash([]);x.fillStyle=col;x.font='10px sans-serif';x.textAlign='left';x.fillText(TX?n+' '+p.toFixed(2):n,4,Y(p)-3)});
 const py=Y(px);if(py>0&&py<H2){x.fillStyle='#d4af37';x.fillRect(R,py-8,pw,16);x.fillStyle='#000';x.font='bold 10px sans-serif';x.fillText(px.toFixed(2),R+3,py+4)}}
 const LAYDEF=[['fvg','FVG'],['ob','OB'],['liq','سيولة'],['bos','BOS/CHoCH'],['fib','فيبو'],['ema','EMA']];
-function buildLayers(){['layers','layersFS'].forEach(id=>{const c=$(id);c.innerHTML='';LAYDEF.forEach(([k,n])=>{const b=document.createElement('button');b.textContent=n;b.className='chip'+(S.lay[k]?' on':'');
-b.onclick=()=>{S.lay[k]=S.lay[k]?0:1;save();buildLayers();redraw()};c.appendChild(b)})})}
+function buildLayers(){const c=$('layers');c.innerHTML='';
+const add=(n,on,fn)=>{const b=document.createElement('button');b.textContent=n;b.className='chip'+(on?' on':'');b.onclick=fn;c.appendChild(b)};
+add('النصوص',S.txt!==0,()=>{S.txt=S.txt===0?1:0;save();buildLayers();redraw()});
+LAYDEF.forEach(([k,n])=>add(n,S.lay[k],()=>{S.lay[k]=S.lay[k]?0:1;save();buildLayers();redraw()}))}
 function attach(cv){const P=new Map();let d0=1,n0=70,x0=0,s0=0;cv.style.touchAction='none';
 cv.addEventListener('pointerdown',e=>{try{cv.setPointerCapture(e.pointerId)}catch(_){}P.set(e.pointerId,e.clientX);
 if(P.size===1){x0=e.clientX;s0=view.shift}if(P.size===2){const a=[...P.values()];d0=Math.abs(a[0]-a[1])||1;n0=view.n}});
@@ -342,8 +344,7 @@ async function openFS(){fsOpen=true;$('fs').hidden=false;document.body.style.ove
 try{await document.documentElement.requestFullscreen()}catch(e){}try{await screen.orientation.lock('landscape')}catch(e){}setTimeout(redraw,200)}
 function closeFS(){fsOpen=false;$('fs').hidden=true;document.body.style.overflow='';try{screen.orientation.unlock()}catch(e){}
 try{if(document.fullscreenElement)document.exitFullscreen()}catch(e){}setTimeout(redraw,100)}
-function initChartUI(){attach($('chart'));attach($('chartFS'));buildLayers();$('fsOpen').onclick=openFS;$('fsClose').onclick=closeFS;
-document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>{const a=b.dataset.z;if(a==='in')view.n=Math.max(20,view.n-10);else if(a==='out')view.n=Math.min(160,view.n+10);else{view.n=70;view.shift=0}redraw()})}
+function initChartUI(){attach($('chart'));buildLayers()}
 function sessions(){const h=new Date().getUTCHours()+new Date().getUTCMinutes()/60,L=n=>String((n+2)%24).padStart(2,'0')+':00';
 const S2=[['آسيا',0,9],['أوروبا',7,16],['أمريكا',13,22]];$('sessions').innerHTML='';
 S2.forEach(([n,a,b])=>{const on=marketOpen(new Date())&&h>=a&&h<b,d=document.createElement('div');d.className='ses'+(on?' on':'');
