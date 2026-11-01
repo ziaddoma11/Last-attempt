@@ -33,3 +33,4 @@ input[type=range]{width:100%;accent-color:var(--g)}
 .ses{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #222;font-size:14px}.ses.on{color:var(--up)}
 #analyst{white-space:pre-line;line-height:1.9;color:#ddd;font-size:14px}
 footer{text-align:center;color:var(--m);font-size:12px;padding:14px}
+.act{display:flex;gap:8px;margin-top:10px}.act[hidden]{display:none}.act button{flex:1;padding:14px;border-radius:12px;font-size:16px;margin:0}.btnIn{background:#12372f;color:#26a69a;border:1px solid #26a69a;font-weight:700}
